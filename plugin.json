@@ -1,4 +1,4 @@
 {
-    "name": "ecohealth",
-    "description": "Custom routes for accessing Ecohealth Alliance documents."
+    "name": "grits",
+    "description": "Custom routes for accessing GRITS documents."
 }

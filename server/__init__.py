@@ -1,7 +1,6 @@
 
 import os
 import re
-import hashlib
 from dateutil.parser import parse as dateParse
 from datetime import datetime, timedelta
 
@@ -13,6 +12,7 @@ from girder import events
 from girder.api.rest import Resource, RestException
 from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
+from girder.constants import AccessType
 
 def getConfig(fname='eha.json'):
     try:
@@ -22,16 +22,11 @@ def getConfig(fname='eha.json'):
     return json.loads(s)
 
 class EHADatabase(Resource):
-    def __init__(self, folderId=None, apiKeys=[]):
+    def __init__(self, folderId=None, **kwargs):
         if folderId is None:
             raise Exception("No folderId given in config")
         self.folderId = ObjectId(folderId)
-        self.apiKeys = apiKeys
 
-    @classmethod
-    def generateAPIKey(cls):
-        return hashlib.md5(os.urandom(256)).hexdigest()
-    
     @classmethod
     def togeoJSON(cls, records):
         output = []
@@ -67,10 +62,18 @@ class EHADatabase(Resource):
         if value is not None:
             query['meta.' + key] = re.compile(value)
         return self
+    
+    def gritsSearch(self, params):
 
-    def ehaSearch(self, params):
-        if not params.get('apiKey') in self.apiKeys:
-            raise RestException("Invalid API key")
+        user = self.getCurrentUser()
+        folderModel = ModelImporter().model('folder')
+        folder = folderModel.find({'_id': self.folderId})
+        if folder.count() != 1:
+            raise RestException("Folder ID configured incorrectly")
+        folder = folder[0]
+        if not folderModel.hasAccess(folder, user=user, level=AccessType.READ):
+            raise RestException("Access denied")
+
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
         sDate = dateParse(params.get('start', '1990-01-01'))
         eDate = dateParse(params.get('end', str(datetime.now())))
@@ -87,15 +90,15 @@ class EHADatabase(Resource):
         self.addToQuery(query, params, 'description')
 
         model = ModelImporter().model('item')
-        result = list(model.find(query=query, fields=None, offset=offset, limit=limit, sort=sort))
+        cursor = model.find(query=query, fields=None, offset=offset, limit=limit, sort=sort)
+        result = list(cursor)
         if params.has_key('geoJSON'):
             result = self.togeoJSON(result)
         return result
 
-    ehaSearch.description = (
-        Description("Perform a query on the Ecohealth Alliance incident database.")
+    gritsSearch.description = (
+        Description("Perform a query on the GRITS incident database.")
         .notes("The country, disease, species, feed, and description parameters accept regular expressions.")
-        .param("apiKey", "The API key granting access to the plugin")
         .param("start", "The start date of the query (inclusive)", required=False)
         .param("end", "The end date of the query (exclusive)", required=False)
         .param("country", "The country where the incident occurred", required=False)
@@ -112,4 +115,4 @@ class EHADatabase(Resource):
 def load(info):
     config = getConfig()
     db = EHADatabase(**config)
-    info['apiRoot'].resource.route('GET', ('eha',), db.ehaSearch)
+    info['apiRoot'].resource.route('GET', ('grits',), db.gritsSearch)
