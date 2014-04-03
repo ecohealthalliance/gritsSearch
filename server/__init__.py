@@ -39,17 +39,18 @@ class EHADatabase(Resource):
                     'coordinates': [ meta.pop('longitude'), meta.pop('latitude') ]
                 },
                 'properties': { 
-                    'id': record['name'],
-                    'summary': record['description'],
-                    'description': meta['description'],
+                    'id': record.get('name'),
+                    'summary': record.get('description'),
+                    'description': meta.get('description'),
                     'updated': str(record['updated']),
                     'added': str(record['created']),
-                    'link': meta['link'],
-                    'date': str(meta['date']),
-                    'country': meta['country'],
-                    'rating': meta['rating'],
-                    'feed': meta['feed'],
-                    'disease': meta['disease']
+                    'link': meta.get('link'),
+                    'date': str(meta.get('date')),
+                    'country': meta.get('country'),
+                    'rating': meta.get('rating'),
+                    'feed': meta.get('feed'),
+                    'disease': meta.get('disease'),
+                    'species': meta.get('species')
                 }
             })
         return {
