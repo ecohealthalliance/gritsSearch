@@ -1,6 +1,7 @@
 
 import os
 import re
+import random
 from dateutil.parser import parse as dateParse
 from datetime import datetime, timedelta
 
@@ -26,6 +27,7 @@ class EHADatabase(Resource):
         if folderId is None:
             raise Exception("No folderId given in config")
         self.folderId = ObjectId(folderId)
+        self._symptomsTable = None
 
     @classmethod
     def togeoJSON(cls, records):
@@ -50,13 +52,41 @@ class EHADatabase(Resource):
                     'rating': meta.get('rating'),
                     'feed': meta.get('feed'),
                     'disease': meta.get('disease'),
-                    'species': meta.get('species')
+                    'species': meta.get('species'),
+                    'symptoms': meta.get('symptoms')
                 }
             })
         return {
             'type': 'FeatureCollection',
             'features': output
         }
+
+    @staticmethod
+    def selectFromCDF(val, table):
+        index = map(lambda x: x >= val, table['cdf']).index(True)
+        return table['value'][index]
+
+    def getSymptomFromId(self, id):
+        # lazy load symptoms table
+        if self._symptomsTable is None:
+            f = open(os.path.join(os.path.dirname(__file__), 'symptomsHist.json'), 'r').read()
+            self._symptomsTable = json.loads(f)
+
+        random.seed(id)  # set seed for repeatable results
+        nSymptoms = self.selectFromCDF(random.random(), self._symptomsTable['nSymptoms'])
+
+        nSymptoms = min(nSymptoms, len(self._symptomsTable['symptoms']['value']))
+        symptoms = []
+        for i in xrange(nSymptoms):
+            repeat = True
+            while repeat:
+                s = self.selectFromCDF(random.random(), self._symptomsTable['symptoms'])
+                try:
+                    symptoms.index(s)
+                except ValueError:
+                    symptoms.append(s)
+                    repeat = False
+        return symptoms
 
     def addToQuery(self, query, params, key):
         value = params.get(key)
@@ -93,6 +123,22 @@ class EHADatabase(Resource):
         model = ModelImporter().model('item')
         cursor = model.find(query=query, fields=None, offset=offset, limit=limit, sort=sort)
         result = list(cursor)
+        if params.has_key('randomSymptoms'):
+            try:
+                filterBySymptom = set(json.loads(params['filterSymptoms']))
+            except Exception:
+                filterBySymptom = False
+            filtered = []
+            for r in result:
+                r['meta']['symptoms'] = self.getSymptomFromId(r['_id'])
+                if filterBySymptom:
+                    s2 = set(r['meta']['symptoms'])
+                    if not filterBySymptom.isdisjoint(s2):
+                        filtered.append(r)
+                else:
+                    filtered.append(r)
+            result = filtered
+
         if params.has_key('geoJSON'):
             result = self.togeoJSON(result)
         return result
