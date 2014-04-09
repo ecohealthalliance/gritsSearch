@@ -88,10 +88,13 @@ class EHADatabase(Resource):
                     repeat = False
         return symptoms
 
-    def addToQuery(self, query, params, key):
+    def addToQuery(self, query, params, key, useRegex):
         value = params.get(key)
         if value is not None:
-            query['meta.' + key] = re.compile(value)
+            if useRegex:
+                query['meta.' + key] = re.compile(value)
+            else:
+                query['meta.' + key] = value
         return self
     
     def gritsSearch(self, params):
@@ -108,17 +111,18 @@ class EHADatabase(Resource):
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
         sDate = dateParse(params.get('start', '1990-01-01'))
         eDate = dateParse(params.get('end', str(datetime.now())))
+        useRegex = not params.has_key('disableRegex')
 
         query = {
                     'folderId': self.folderId,
                     'meta.date': {'$gte': sDate, '$lt': eDate}
                 }
         
-        self.addToQuery(query, params, 'country')
-        self.addToQuery(query, params, 'disease')
-        self.addToQuery(query, params, 'species')
-        self.addToQuery(query, params, 'feed')
-        self.addToQuery(query, params, 'description')
+        self.addToQuery(query, params, 'country', useRegex)
+        self.addToQuery(query, params, 'disease', useRegex)
+        self.addToQuery(query, params, 'species', useRegex)
+        self.addToQuery(query, params, 'feed', useRegex)
+        self.addToQuery(query, params, 'description', useRegex)
 
         model = ModelImporter().model('item')
         cursor = model.find(query=query, fields=None, offset=offset, limit=limit, sort=sort)
