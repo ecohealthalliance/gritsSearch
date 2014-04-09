@@ -6,6 +6,7 @@ from dateutil.parser import parse as dateParse
 from datetime import datetime, timedelta
 
 import json
+import bson.json_util
 from bson.objectid import ObjectId
 from bson.json_util import dumps
 
@@ -94,7 +95,11 @@ class EHADatabase(Resource):
             if useRegex:
                 query['meta.' + key] = re.compile(value)
             else:
-                query['meta.' + key] = value
+                try:
+                    value = bson.json_util.loads(value)
+                except ValueError:
+                    value = [value]
+                query['meta.' + key] = { '$in': value }
         return self
     
     def gritsSearch(self, params):
