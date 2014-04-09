@@ -89,17 +89,19 @@ class EHADatabase(Resource):
                     repeat = False
         return symptoms
 
-    def addToQuery(self, query, params, key, useRegex):
+    def addToQuery(self, query, params, key, useRegex, itemKey=None):
         value = params.get(key)
         if value is not None:
+            if itemKey is None:
+                itemKey = 'meta.' + key
             if useRegex:
-                query['meta.' + key] = re.compile(value)
+                query[itemKey] = re.compile(value)
             else:
                 try:
                     value = bson.json_util.loads(value)
                 except ValueError:
                     value = [value]
-                query['meta.' + key] = { '$in': value }
+                query[itemKey] = { '$in': value }
         return self
     
     def gritsSearch(self, params):
@@ -128,6 +130,7 @@ class EHADatabase(Resource):
         self.addToQuery(query, params, 'species', useRegex)
         self.addToQuery(query, params, 'feed', useRegex)
         self.addToQuery(query, params, 'description', useRegex)
+        self.addToQuery(query, params, 'id', useRegex, 'name')
 
         model = ModelImporter().model('item')
         cursor = model.find(query=query, fields=None, offset=offset, limit=limit, sort=sort)
@@ -162,6 +165,7 @@ class EHADatabase(Resource):
         .param("species", "The species named in the report", required=False)
         .param("feed", "The feed where the report originated", required=False)
         .param("description", "Match words listed in the incident description field", required=False)
+        .param("id", "Match by internal incident identification number", required=False)
         .param("limit", "The number of items to return (default=50)", required=False, dataType='int')
         .param("offset", "Offset into the result set (default=0)", required=False, dataType='int')
         .param("geoJSON", "Return the query as a geoJSON object when this parameter is present", required=False, dataType='bool')
