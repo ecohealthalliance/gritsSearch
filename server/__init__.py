@@ -16,18 +16,89 @@ from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
 
-def getConfig(fname='eha.json'):
-    try:
-        s = open(os.path.join(os.path.dirname(__file__), fname), 'r').read()
-    except Exception:
-        s = '{}'
-    return json.loads(s)
+config = {
+    'collectionName': 'healthmap',
+    'folderName': 'allAlerts',
+    'user': 'grits',
+    'group': 'GRITS',
+}
 
-class EHADatabase(Resource):
-    def __init__(self, folderId=None, **kwargs):
-        if folderId is None:
-            raise Exception("No folderId given in config")
-        self.folderId = ObjectId(folderId)
+def findOne(model, query):
+
+    item = list(model.find(query = query, limit = 1))
+    if len(item) == 0:
+        item = None
+    else:
+        item = item[0]
+    return item
+
+def getFolderID():
+
+    userModel = ModelImporter().model('user')
+    user = findOne(userModel, {'login': config['user']})
+
+    if user is None:
+        raise Exception('Could not find existing user: %s' % config['user'])
+
+    groupModel = ModelImporter().model('group')
+    group = findOne(groupModel, {'name': config['group']})
+
+    if group is None:
+        group = groupModel.createGroup(
+                name = config['group'],
+                creator = user,
+                description = 'Allows access to the healthmap incident database',
+                public = False
+        )
+        groupModel.addUser(group, user, level=AccessType.ADMIN)
+
+    collectionModel = ModelImporter().model('collection')
+    collection = findOne(
+            collectionModel,
+            query = {'name': config['collectionName']},
+    )
+
+    if collection is None:
+        collection = collectionModel.createCollection(
+                name = config['collectionName'],
+                creator = user,
+                description = 'Healthmap incident database',
+                public = False
+        )
+        collectionModel.setGroupAccess(
+                doc = collection,
+                group = group,
+                level = AccessType.READ
+        )
+
+    folderModel = ModelImporter().model('folder')
+    folder = findOne(
+        model = folderModel,
+        query = {
+            'name': config['folderName'],
+            'parentId': collection['_id']
+        }
+    )
+
+    if folder is None:
+        folder = folderModel.createFolder(
+                parent =  collection,
+                name = config['folderName'],
+                description = 'Incident item folder',
+                parentType = 'collection',
+                public = False,
+                creator = user
+        )
+        folderModel.setGroupAccess(
+                doc = folder,
+                group = group,
+                level = AccessType.READ
+        )
+    return folder['_id']
+
+class GRITSDatabase(Resource):
+    def __init__(self, folderId):
+        self.folderId = folderId
         self._symptomsTable = None
 
     @classmethod
@@ -173,6 +244,5 @@ class EHADatabase(Resource):
     )
 
 def load(info):
-    config = getConfig()
-    db = EHADatabase(**config)
+    db = GRITSDatabase(getFolderID())
     info['apiRoot'].resource.route('GET', ('grits',), db.gritsSearch)
