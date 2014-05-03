@@ -34,7 +34,7 @@ def findOne(model, query):
     return item
 
 
-def getFolderID():
+def getFolder():
 
     userModel = ModelImporter().model('user')
     user = findOne(userModel, {'login': config['user']})
@@ -96,13 +96,18 @@ def getFolderID():
             group=group,
             level=AccessType.READ
         )
-    return folder['_id']
+    return folder
 
 
 class GRITSDatabase(Resource):
-    def __init__(self, folderId):
-        self.folderId = folderId
+    def __init__(self):
         self._symptomsTable = None
+        self._gritsFolder = None
+
+    def gritsFolder(self):
+        if self._gritsFolder is None:
+            self._gritsFolder = getFolder()
+        return self._gritsFolder
 
     @classmethod
     def togeoJSON(cls, records):
@@ -194,10 +199,8 @@ class GRITSDatabase(Resource):
 
         user = self.getCurrentUser()
         folderModel = ModelImporter().model('folder')
-        folder = folderModel.find({'_id': self.folderId})
-        if folder.count() != 1:
-            raise RestException("Folder ID configured incorrectly")
-        folder = folder[0]
+        folder = self.gritsFolder()
+
         if not folderModel.hasAccess(folder, user=user, level=AccessType.READ):
             raise RestException("Access denied")
 
@@ -207,7 +210,7 @@ class GRITSDatabase(Resource):
         useRegex = 'disableRegex' not in params
 
         query = {
-            'folderId': self.folderId,
+            'folderId': folder['_id'],
             'meta.date': {'$gte': sDate, '$lt': eDate}
         }
 
@@ -317,5 +320,5 @@ class GRITSDatabase(Resource):
 
 
 def load(info):
-    db = GRITSDatabase(getFolderID())
+    db = GRITSDatabase()
     info['apiRoot'].resource.route('GET', ('grits',), db.gritsSearch)
