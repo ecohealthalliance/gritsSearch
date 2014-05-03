@@ -70,7 +70,8 @@ def getFolder():
         collectionModel.setGroupAccess(
             doc=collection,
             group=group,
-            level=AccessType.READ
+            level=AccessType.READ,
+            save=True
         )
 
     folderModel = ModelImporter().model('folder')
@@ -94,7 +95,8 @@ def getFolder():
         folderModel.setGroupAccess(
             doc=folder,
             group=group,
-            level=AccessType.READ
+            level=AccessType.READ,
+            save=True
         )
     return folder
 
@@ -202,7 +204,7 @@ class GRITSDatabase(Resource):
         folder = self.gritsFolder()
 
         if not folderModel.hasAccess(folder, user=user, level=AccessType.READ):
-            raise RestException("Access denied")
+            raise RestException("Access denied", code=403)
 
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
         sDate = dateParse(params.get('start', '1990-01-01'))
@@ -316,6 +318,7 @@ class GRITSDatabase(Resource):
             dataType='bool'
         )
         .errorResponse()
+        .errorResponse('Read permission denied', 403)
     )
 
 

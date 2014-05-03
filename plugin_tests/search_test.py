@@ -67,11 +67,32 @@ class GritsSearchTestCase(base.TestCase):
 
         # Create users
         self.admin = self.model('user').createUser(**admin)
-        self.gritsUser = self.model('user').createUser(**gritsUser)
         self.normalUser = self.model('user').createUser(**normalUser)
 
+    def testGritsPermissions(self):
+        resp = self.request(
+            path='/resource/grits',
+            method='GET',
+            user=self.admin
+        )
+        self.assertStatus(resp, 200)
+
+        resp = self.request(
+            path='/resource/grits',
+            method='GET',
+            user=self.normalUser
+        )
+        self.assertStatus(resp, 403)
+
+        gritsGroup = self.model('group').find({'name': 'GRITS'})[0]
+        user = self.model('user').createUser(**gritsUser)
+        self.model('group').addUser(gritsGroup, user)
+        resp = self.request(
+            path='/resource/grits',
+            method='GET',
+            user=user
+        )
+        self.assertStatus(resp, 200)
+
     def testGritsSearch(self):
-        """
-        Test resource/grits endpoint
-        """
         pass
