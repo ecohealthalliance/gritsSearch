@@ -10,22 +10,26 @@ import bson.json_util
 from bson.objectid import ObjectId
 from bson.json_util import dumps
 
+import cherrypy
+
 from girder import events
-from girder.api.rest import Resource, RestException
+from girder.api.rest import Resource, RestException, loadmodel
 from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
+from girder.models.model_base import AccessException
+from girder.api.v1.item import Item
 
 config = {
     'collectionName': 'healthmap',
     'folderName': 'allAlerts',
     'user': 'grits',
     'group': 'GRITS',
+    'groupPriv': 'GRITSPriv'
 }
 
 
 def findOne(model, query):
-
     item = list(model.find(query=query, limit=1))
     if len(item) == 0:
         item = None
@@ -34,13 +38,18 @@ def findOne(model, query):
     return item
 
 
-def getFolder():
-
+def getInfo():
+    info = {}
     userModel = ModelImporter().model('user')
     user = findOne(userModel, {'login': config['user']})
+    info['user'] = user
 
     if user is None:
-        raise Exception('Could not find existing user: %s' % config['user'])
+        raise RestException(
+            'Could not find existing user "%s"' % config['user'] +
+            'needed by grits plugin',
+            code=405
+        )
 
     groupModel = ModelImporter().model('group')
     group = findOne(groupModel, {'name': config['group']})
@@ -52,7 +61,22 @@ def getFolder():
             description='Allows access to the healthmap incident database',
             public=False
         )
-        groupModel.addUser(group, user, level=AccessType.ADMIN)
+        groupModel.setGroupAccess
+    groupModel.addUser(group, user, level=AccessType.ADMIN)
+    info['group'] = group
+
+    groupPriv = findOne(groupModel, {'name': config['groupPriv']})
+
+    if groupPriv is None:
+        groupPriv = groupModel.createGroup(
+            name=config['groupPriv'],
+            creator=user,
+            description='Allows privilaged access to ' +
+            'the healthmap incident database',
+            public=False
+        )
+    groupModel.addUser(groupPriv, user, level=AccessType.ADMIN)
+    info['groupPriv'] = groupPriv
 
     collectionModel = ModelImporter().model('collection')
     collection = findOne(
@@ -73,6 +97,7 @@ def getFolder():
             level=AccessType.READ,
             save=True
         )
+    info['collection'] = collection
 
     folderModel = ModelImporter().model('folder')
     folder = findOne(
@@ -98,29 +123,109 @@ def getFolder():
             level=AccessType.READ,
             save=True
         )
-    return folder
+    info['folder'] = folder
+    return info
+
+
+def commonErrors(desc):
+    desc.description.errorResponse('Permission denied', 403)
+    desc.description.errorResponse('"grits" user does not exist', 405)
 
 
 class GRITSDatabase(Resource):
     def __init__(self):
         self._symptomsTable = None
         self._gritsFolder = None
+        self._info = None
+
+    def gritsInfo(self):
+        # if self._info is None:
+        #     self._info = getInfo()
+        # return self._info
+        return getInfo()
 
     def gritsFolder(self):
-        if self._gritsFolder is None:
-            self._gritsFolder = getFolder()
-        return self._gritsFolder
+        return self.gritsInfo()['folder']
+
+    def checkAccess(self, level=AccessType.READ, priv=False, fail=True):
+        g = self.gritsInfo()['group']
+        p = self.gritsInfo()['groupPriv']
+        user = self.getCurrentUser()
+        groupModel = ModelImporter().model('group')
+
+        try:
+            groupModel.requireAccess(p, user, level)
+        except AccessException:
+            p = False
+
+        try:
+            groupModel.requireAccess(g, user, level)
+        except AccessException:
+            g = False
+
+        if priv and not p:
+            if not fail:
+                return False
+            raise RestException("Access denied", code=403)
+
+        if not priv and not (p or g):
+            if not fail:
+                return False
+            raise RestException("Access denied", code=403)
+
+        return True
+
+    def gritsFolderId(self, params):
+        self.checkAccess()
+        return self.gritsFolder()['_id']
+    gritsFolderId.description = (
+        Description("Get the folder ID of the grits database")
+    )
+    commonErrors(gritsFolderId)
+
+    def gritsGroupId(self, params):
+        self.checkAccess()
+        return self.gritsInfo()['group']['_id']
+    gritsGroupId.description = (
+        Description(
+            'Return the group ID for common access to the grits database'
+        )
+    )
+    commonErrors(gritsGroupId)
+
+    def gritsGroupPrivId(self, params):
+        self.checkAccess(priv=True)
+        return self.gritsInfo()['groupPriv']['_id']
+    gritsGroupPrivId.description = (
+        Description(
+            'Return the group ID for privilaged access to the grits database'
+        )
+    )
+    commonErrors(gritsGroupPrivId)
+
+    def gritsCollectionId(self, params):
+        self.checkAccess()
+        return self.gritsInfo()['collection']['_id']
+    gritsCollectionId.description = (
+        Description(
+            'Return the collection ID of the grits database'
+        )
+    )
+    commonErrors(gritsCollectionId)
 
     @classmethod
     def togeoJSON(cls, records):
         output = []
         for record in records:
             meta = record['meta']
-            output.append({
+            obj = {
                 'type': 'Feature',
                 'geometry': {
                     'type': 'Point',
-                    'coordinates': [meta.pop('longitude'), meta.pop('latitude')]
+                    'coordinates': [
+                        meta.pop('longitude'),
+                        meta.pop('latitude')
+                    ]
                 },
                 'properties': {
                     'id': record.get('name'),
@@ -137,7 +242,10 @@ class GRITSDatabase(Resource):
                     'species': meta.get('species'),
                     'symptoms': meta.get('symptoms')
                 }
-            })
+            }
+            if 'private' in record:
+                obj['properties'].update(record['private'])
+            output.append(obj)
         return {
             'type': 'FeatureCollection',
             'features': output
@@ -197,14 +305,50 @@ class GRITSDatabase(Resource):
                 query[itemKey] = {'$in': value}
         return self
 
+    @loadmodel(map={'id': 'item'}, model='item', level=AccessType.WRITE)
+    def gritsSetPrivateMetadata(self, item, params):
+        self.checkAccess(level=AccessType.WRITE, priv=True)
+        itemModel = ModelImporter().model('item')
+
+        try:
+            metadata = bson.json_util.loads(cherrypy.request.body.read())
+        except ValueError:
+            raise RestException('Invalid JSON passed in request body.')
+
+        if 'private' not in item:
+            item['private'] = dict()
+
+        for k, v in metadata.iteritems():
+            if v is None:
+                item['private'].pop(k)
+            else:
+                item['private'][k] = v
+
+        return itemModel.save(item)
+    gritsSetPrivateMetadata.description = (
+        Description("Create or update private metadata for an incident")
+        .notes('Set metadata fields to null in order to delete them.')
+        .param(
+            'id',
+            'The ID of the item.',
+            paramType='path'
+        )
+        .param(
+            'body',
+            'A JSON object containing the private metadata to add',
+            paramType='body'
+        )
+        .errorResponse('ID was invalid.')
+    )
+    commonErrors(gritsSetPrivateMetadata)
+
     def gritsSearch(self, params):
 
         user = self.getCurrentUser()
         folderModel = ModelImporter().model('folder')
         folder = self.gritsFolder()
 
-        if not folderModel.hasAccess(folder, user=user, level=AccessType.READ):
-            raise RestException("Access denied", code=403)
+        self.checkAccess()
 
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
         sDate = dateParse(params.get('start', '1990-01-01'))
@@ -232,6 +376,10 @@ class GRITSDatabase(Resource):
             sort=sort
         )
         result = list(cursor)
+        if not self.checkAccess(priv=True, fail=False):
+            item = Item()
+            result = [item._filter(i) for i in result]
+
         if 'randomSymptoms' in params:
             try:
                 filterBySymptom = set(json.loads(params['filterSymptoms']))
@@ -318,10 +466,35 @@ class GRITSDatabase(Resource):
             dataType='bool'
         )
         .errorResponse()
-        .errorResponse('Read permission denied', 403)
     )
+    commonErrors(gritsSearch)
 
 
 def load(info):
     db = GRITSDatabase()
     info['apiRoot'].resource.route('GET', ('grits',), db.gritsSearch)
+    info['apiRoot'].resource.route(
+        'GET',
+        ('grits', 'folderId'),
+        db.gritsFolderId
+    )
+    info['apiRoot'].resource.route(
+        'GET',
+        ('grits', 'groupId'),
+        db.gritsGroupId
+    )
+    info['apiRoot'].resource.route(
+        'GET',
+        ('grits', 'privilegedId'),
+        db.gritsGroupPrivId
+    )
+    info['apiRoot'].resource.route(
+        'GET',
+        ('grits', 'collectionId'),
+        db.gritsCollectionId
+    )
+    info['apiRoot'].resource.route(
+        'PUT',
+        ('grits', 'private', ':id'),
+        db.gritsSetPrivateMetadata
+    )
