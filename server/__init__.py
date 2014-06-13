@@ -18,7 +18,6 @@ from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
 from girder.models.model_base import AccessException
-from girder.api.v1.item import Item
 
 config = {
     'collectionName': 'healthmap',
@@ -377,8 +376,7 @@ class GRITSDatabase(Resource):
         )
         result = list(cursor)
         if not self.checkAccess(priv=True, fail=False):
-            item = Item()
-            result = [item._filter(i) for i in result]
+            result = [model.filter(i) for i in result]
 
         if 'randomSymptoms' in params:
             try:
