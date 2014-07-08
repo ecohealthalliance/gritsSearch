@@ -20,7 +20,7 @@ from girder.constants import AccessType
 from girder.models.model_base import AccessException
 
 config = {
-    'collectionName': 'healthMap',
+    'collectionName': 'healthmap',
     'folderName': 'allAlerts',
     'user': 'grits',
     'group': 'GRITS',
