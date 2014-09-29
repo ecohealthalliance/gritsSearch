@@ -355,7 +355,7 @@ class GRITSDatabase(Resource):
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
         sDate = dateParse(params.get('start', '1990-01-01'))
         eDate = dateParse(params.get('end', str(datetime.now())))
-        useRegex = 'disableRegex' not in params
+        useRegex = 'regex' in params
 
         query = {
             'folderId': folder['_id'],
@@ -367,7 +367,14 @@ class GRITSDatabase(Resource):
         self.addToQuery(query, params, 'species', useRegex)
         self.addToQuery(query, params, 'feed', useRegex)
         self.addToQuery(query, params, 'description', useRegex)
-        self.addToQuery(query, params, 'diagnosis', useRegex, 'meta.diagnosis.diseases', 'name')
+        self.addToQuery(
+            query,
+            params,
+            'diagnosis',
+            useRegex,
+            'meta.diagnosis.diseases',
+            'keywords.name'
+        )
         self.addToQuery(query, params, 'id', useRegex, 'name')
 
         model = ModelImporter().model('item')
@@ -469,6 +476,12 @@ class GRITSDatabase(Resource):
             "geoJSON",
             "Return the query as a geoJSON object " +
             "when this parameter is present",
+            required=False,
+            dataType='bool'
+        )
+        .param(
+            "regex",
+            "Enable regex search for text fields",
             required=False,
             dataType='bool'
         )

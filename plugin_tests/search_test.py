@@ -20,11 +20,9 @@
 import json
 from datetime import datetime
 
-import bson.json_util
 from bson.objectid import ObjectId
 
 from tests import base
-from girder.constants import AccessType
 
 admin = {
     'email': 'grits@email.com',
@@ -94,7 +92,18 @@ incidents = [
             "longitude": 5,
             "latitude": 5,
             "link": "www.google.com",
-            "date": datetime(2012, 2, 1)
+            "date": datetime(2012, 2, 1),
+            "diagnosis": {
+                u"diseases": [
+                    {
+                        u"keywords": [
+                            {
+                                u"name": u"flu"
+                            }
+                        ]
+                    }
+                ]
+            }
         },
         "private": {
             "privatekey1": "something",
@@ -114,7 +123,18 @@ incidents = [
             "longitude": 10,
             "latitude": 15,
             "link": "www.github.com",
-            "date": datetime(2012, 2, 5)
+            "date": datetime(2012, 2, 5),
+            "diagnosis": {
+                u"diseases": [
+                    {
+                        u"keywords": [
+                            {
+                                u"name": u"influenza"
+                            }
+                        ]
+                    }
+                ]
+            }
         },
         "private": {
             "privatekey1": "private value 1",
@@ -139,6 +159,52 @@ class GritsSearchTestCase(base.TestCase):
     def setUpGroups(self):
         self.admin = self.model('user').createUser(**admin)
         self.normalUser = self.model('user').createUser(**normalUser)
+
+    def setUpData(self):
+        self.setUpGroups()
+        resp = self.request(
+            path='/resource/grits/folderId',
+            method='GET',
+            user=self.admin
+        )
+        self.assertStatusOk(resp)
+        folder = resp.json
+
+        for incident in incidents:
+            resp = self.request(
+                path='/item',
+                method='POST',
+                user=self.admin,
+                params={
+                    'folderId': folder,
+                    'name': incident['name'],
+                    'description': incident['description']
+                }
+            )
+            self.assertStatusOk(resp)
+
+#            resp = self.request(
+#                path='/item/%s/metadata' % str(resp.json['_id']),
+#                method='PUT',
+#                user=self.admin,
+#                body=bson.json_util.dumps(incident['meta']),
+#                type='application/json'
+#            )
+#            self.assertStatusOk(resp)
+
+            # need to handle lack of bson in item metadata...
+            for key in ['_id', 'creatorId', 'folderId']:
+                resp.json[key] = ObjectId(resp.json[key])
+            self.model('item').setMetadata(resp.json, incident['meta'])
+
+            resp = self.request(
+                path='/resource/grits/private/%s' % str(resp.json['_id']),
+                method='PUT',
+                user=self.admin,
+                body=json.dumps(incident['private']),
+                type='application/json'
+            )
+            self.assertStatusOk(resp)
 
     def testGritsPermissions(self):
 
@@ -248,50 +314,7 @@ class GritsSearchTestCase(base.TestCase):
                 for i in resp.json['features']:
                     self.assertHasKeys(i['properties'], ['privatekey1'])
 
-        self.setUpGroups()
-        resp = self.request(
-            path='/resource/grits/folderId',
-            method='GET',
-            user=self.admin
-        )
-        self.assertStatusOk(resp)
-        folder = resp.json
-
-        for incident in incidents:
-            resp = self.request(
-                path='/item',
-                method='POST',
-                user=self.admin,
-                params={
-                    'folderId': folder,
-                    'name': incident['name'],
-                    'description': incident['description']
-                }
-            )
-            self.assertStatusOk(resp)
-
-#            resp = self.request(
-#                path='/item/%s/metadata' % str(resp.json['_id']),
-#                method='PUT',
-#                user=self.admin,
-#                body=bson.json_util.dumps(incident['meta']),
-#                type='application/json'
-#            )
-#            self.assertStatusOk(resp)
-
-            # need to handle lack of bson in item metadata...
-            for key in ['_id', 'creatorId', 'folderId']:
-                resp.json[key] = ObjectId(resp.json[key])
-            self.model('item').setMetadata(resp.json, incident['meta'])
-
-            resp = self.request(
-                path='/resource/grits/private/%s' % str(resp.json['_id']),
-                method='PUT',
-                user=self.admin,
-                body=json.dumps(incident['private']),
-                type='application/json'
-            )
-            self.assertStatusOk(resp)
+        self.setUpData()
 
         gritsGroup = self.model('group').find({'name': 'GRITS'})[0]
         g = self.model('user').createUser(**gritsUser)
@@ -311,3 +334,35 @@ class GritsSearchTestCase(base.TestCase):
         check(self.admin, True)
         check(p, True)
         check(g, False)
+
+    def testDiagnosisSearch(self):
+
+        self.setUpData()
+
+        resp = self.request(
+            path='/resource/grits',
+            method='GET',
+            params={
+                'diagnosis': 'flu'
+            },
+            user=self.admin
+        )
+        self.assertStatusOk(resp)
+
+        results = resp.json
+        self.assertEqual(len(results), 1)
+        self.assertEqual(str(results[0]['name']), '1001')
+
+        resp = self.request(
+            path='/resource/grits',
+            method='GET',
+            params={
+                'diagnosis': 'flu',
+                'regex': 1
+            },
+            user=self.admin
+        )
+        self.assertStatusOk(resp)
+
+        results = resp.json
+        self.assertEqual(len(results), 2)
