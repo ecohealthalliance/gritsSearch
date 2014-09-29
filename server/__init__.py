@@ -3,16 +3,13 @@ import os
 import re
 import random
 from dateutil.parser import parse as dateParse
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import json
 import bson.json_util
-from bson.objectid import ObjectId
-from bson.json_util import dumps
 
 import cherrypy
 
-from girder import events
 from girder.api.rest import Resource, RestException, loadmodel
 from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
@@ -351,8 +348,6 @@ class GRITSDatabase(Resource):
 
     def gritsSearch(self, params):
 
-        user = self.getCurrentUser()
-        folderModel = ModelImporter().model('folder')
         folder = self.gritsFolder()
 
         self.checkAccess()
