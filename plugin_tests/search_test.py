@@ -100,7 +100,8 @@ incidents = [
                             {
                                 u"name": u"flu"
                             }
-                        ]
+                        ],
+                        u"name": u"flu"
                     }
                 ]
             }
@@ -129,9 +130,10 @@ incidents = [
                     {
                         u"keywords": [
                             {
-                                u"name": u"influenza"
+                                u"name": u"flu"
                             }
-                        ]
+                        ],
+                        u"name": u"Influenza"
                     }
                 ]
             }

@@ -373,7 +373,7 @@ class GRITSDatabase(Resource):
             'diagnosis',
             useRegex,
             'meta.diagnosis.diseases',
-            'keywords.name'
+            'name'
         )
         self.addToQuery(query, params, 'id', useRegex, 'name')
 
