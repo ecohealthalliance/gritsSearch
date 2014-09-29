@@ -16,6 +16,14 @@ from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
 from girder.models.model_base import AccessException
 
+try:
+    from girder.api import access
+except ImportError:
+    def access():
+        pass
+
+    access.user = lambda x: x
+
 config = {
     'collectionName': 'healthmap',
     'folderName': 'allAlerts',
@@ -171,6 +179,7 @@ class GRITSDatabase(Resource):
 
         return True
 
+    @access.user
     def gritsFolderId(self, params):
         self.checkAccess()
         return self.gritsFolder()['_id']
@@ -179,6 +188,7 @@ class GRITSDatabase(Resource):
     )
     commonErrors(gritsFolderId)
 
+    @access.user
     def gritsGroupId(self, params):
         self.checkAccess()
         return self.gritsInfo()['group']['_id']
@@ -189,6 +199,7 @@ class GRITSDatabase(Resource):
     )
     commonErrors(gritsGroupId)
 
+    @access.user
     def gritsGroupPrivId(self, params):
         self.checkAccess(priv=True)
         return self.gritsInfo()['groupPriv']['_id']
@@ -199,6 +210,7 @@ class GRITSDatabase(Resource):
     )
     commonErrors(gritsGroupPrivId)
 
+    @access.user
     def gritsCollectionId(self, params):
         self.checkAccess()
         return self.gritsInfo()['collection']['_id']
@@ -309,6 +321,7 @@ class GRITSDatabase(Resource):
                     query[itemKey]['$elemMatch'][arrayKey] = {'$in': value}
         return self
 
+    @access.user
     @loadmodel(map={'id': 'item'}, model='item', level=AccessType.WRITE)
     def gritsSetPrivateMetadata(self, item, params):
         self.checkAccess(level=AccessType.WRITE, priv=True)
@@ -346,6 +359,7 @@ class GRITSDatabase(Resource):
     )
     commonErrors(gritsSetPrivateMetadata)
 
+    @access.user
     def gritsSearch(self, params):
 
         folder = self.gritsFolder()
