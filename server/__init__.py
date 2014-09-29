@@ -3,16 +3,13 @@ import os
 import re
 import random
 from dateutil.parser import parse as dateParse
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import json
 import bson.json_util
-from bson.objectid import ObjectId
-from bson.json_util import dumps
 
 import cherrypy
 
-from girder import events
 from girder.api.rest import Resource, RestException, loadmodel
 from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
@@ -289,19 +286,27 @@ class GRITSDatabase(Resource):
                     repeat = False
         return symptoms
 
-    def addToQuery(self, query, params, key, useRegex, itemKey=None):
+    def addToQuery(self, query, params, key, useRegex, itemKey=None, arrayKey=None):
         value = params.get(key)
         if value is not None:
             if itemKey is None:
                 itemKey = 'meta.' + key
             if useRegex:
-                query[itemKey] = re.compile(value)
+                if arrayKey is None:
+                    query[itemKey] = re.compile(value)
+                else:
+                    query[itemKey] = {'$elemMatch': {}}
+                    query[itemKey]['$elemMatch'][arrayKey] = re.compile(value)
             else:
                 try:
                     value = bson.json_util.loads(value)
                 except ValueError:
                     value = [value]
-                query[itemKey] = {'$in': value}
+                if arrayKey is None:
+                    query[itemKey] = {'$in': value}
+                else:
+                    query[itemKey] = {'$elemMatch': {}}
+                    query[itemKey]['$elemMatch'][arrayKey] = {'$in': value}
         return self
 
     @loadmodel(map={'id': 'item'}, model='item', level=AccessType.WRITE)
@@ -343,8 +348,6 @@ class GRITSDatabase(Resource):
 
     def gritsSearch(self, params):
 
-        user = self.getCurrentUser()
-        folderModel = ModelImporter().model('folder')
         folder = self.gritsFolder()
 
         self.checkAccess()
@@ -352,7 +355,7 @@ class GRITSDatabase(Resource):
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
         sDate = dateParse(params.get('start', '1990-01-01'))
         eDate = dateParse(params.get('end', str(datetime.now())))
-        useRegex = 'disableRegex' not in params
+        useRegex = 'regex' in params
 
         query = {
             'folderId': folder['_id'],
@@ -364,6 +367,14 @@ class GRITSDatabase(Resource):
         self.addToQuery(query, params, 'species', useRegex)
         self.addToQuery(query, params, 'feed', useRegex)
         self.addToQuery(query, params, 'description', useRegex)
+        self.addToQuery(
+            query,
+            params,
+            'diagnosis',
+            useRegex,
+            'meta.diagnosis.diseases',
+            'keywords.name'
+        )
         self.addToQuery(query, params, 'id', useRegex, 'name')
 
         model = ModelImporter().model('item')
@@ -440,6 +451,11 @@ class GRITSDatabase(Resource):
             required=False
         )
         .param(
+            "diagnosis",
+            "Match disease names in the differential diagnosis of the report",
+            required=False
+        )
+        .param(
             "id",
             "Match by internal incident identification number",
             required=False
@@ -460,6 +476,12 @@ class GRITSDatabase(Resource):
             "geoJSON",
             "Return the query as a geoJSON object " +
             "when this parameter is present",
+            required=False,
+            dataType='bool'
+        )
+        .param(
+            "regex",
+            "Enable regex search for text fields",
             required=False,
             dataType='bool'
         )
