@@ -310,15 +310,11 @@ class GRITSDatabase(Resource):
                     query[itemKey] = {'$elemMatch': {}}
                     query[itemKey]['$elemMatch'][arrayKey] = re.compile(value)
             else:
-                try:
-                    value = bson.json_util.loads(value)
-                except ValueError:
-                    value = [value]
                 if arrayKey is None:
-                    query[itemKey] = {'$in': value}
+                    query[itemKey] = value
                 else:
                     query[itemKey] = {'$elemMatch': {}}
-                    query[itemKey]['$elemMatch'][arrayKey] = {'$in': value}
+                    query[itemKey]['$elemMatch'][arrayKey] = value
         return self
 
     @access.user
