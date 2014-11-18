@@ -18,6 +18,8 @@ from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
 from girder.models.model_base import AccessException
 
+PlacesListName = 'events'
+
 try:
     from girder.api import access
 except ImportError:
@@ -318,11 +320,12 @@ class GRITSDatabase(Resource):
                     query[itemKey] = {'$elemMatch': {}}
                     query[itemKey]['$elemMatch'][arrayKey] = value
             if multiplePlaces:
-                orQuery = [{itemKey: query[itemKey]}, {'meta.places':
+                orQuery = [{itemKey: query[itemKey]},
+                           {'meta.' + PlacesListName:
                            {'$elemMatch': {key: query[itemKey]}}}]
                 if multiplePlaces is not True:
-                    orQuery.append({'meta.'+multiplePlaces: query[itemKey]})
-                    orQuery.append({'meta.places':
+                    orQuery.append({'meta.' + multiplePlaces: query[itemKey]})
+                    orQuery.append({'meta.' + PlacesListName:
                            {'$elemMatch': {multiplePlaces: query[itemKey]}}})
                 if '$and' in query:
                     query['$and'].append({'$or': orQuery})
@@ -514,8 +517,13 @@ class GRITSDatabase(Resource):
             dataType='boolean'
         )
         .param(
+            "filterSymptoms",
+            "A json object with symptoms to search for in randomSymptoms is true",
+            required=False
+        )
+        .param(
             "randomSymptoms",
-            "Enable regex search for text fields",
+            "Enable random symptoms matching",
             required=False,
             dataType='boolean'
         )
