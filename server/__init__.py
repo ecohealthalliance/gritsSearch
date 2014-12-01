@@ -18,7 +18,7 @@ from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
 from girder.models.model_base import AccessException
 
-PlacesListName = 'events'
+EventsListName = 'events'
 
 try:
     from girder.api import access
@@ -268,41 +268,7 @@ class GRITSDatabase(Resource):
         index = map(lambda x: x >= val, table['cdf']).index(True)
         return table['value'][index]
 
-    def getSymptomFromId(self, id):
-        # lazy load symptoms table
-        if self._symptomsTable is None:
-            f = open(os.path.join(
-                os.path.dirname(__file__),
-                'symptomsHist.json'
-            ), 'r').read()
-            self._symptomsTable = json.loads(f)
-
-        random.seed(id)  # set seed for repeatable results
-        nSymptoms = self.selectFromCDF(
-            random.random(),
-            self._symptomsTable['nSymptoms']
-        )
-
-        nSymptoms = min(
-            nSymptoms,
-            len(self._symptomsTable['symptoms']['value'])
-        )
-        symptoms = []
-        for i in xrange(nSymptoms):
-            repeat = True
-            while repeat:
-                s = self.selectFromCDF(
-                    random.random(),
-                    self._symptomsTable['symptoms']
-                )
-                try:
-                    symptoms.index(s)
-                except ValueError:
-                    symptoms.append(s)
-                    repeat = False
-        return symptoms
-
-    def addToQuery(self, query, params, key, useRegex, itemKey=None, arrayKey=None, multiplePlaces=False):
+    def addToQuery(self, query, params, key, useRegex, itemKey=None, arrayKey=None, multipleEvents=False):
         value = params.get(key)
         if value is not None:
             if itemKey is None:
@@ -319,14 +285,14 @@ class GRITSDatabase(Resource):
                 else:
                     query[itemKey] = {'$elemMatch': {}}
                     query[itemKey]['$elemMatch'][arrayKey] = value
-            if multiplePlaces:
+            if multipleEvents:
                 orQuery = [{itemKey: query[itemKey]},
-                           {'meta.' + PlacesListName:
+                           {'meta.' + EventsListName:
                            {'$elemMatch': {key: query[itemKey]}}}]
-                if multiplePlaces is not True:
-                    orQuery.append({'meta.' + multiplePlaces: query[itemKey]})
-                    orQuery.append({'meta.' + PlacesListName:
-                           {'$elemMatch': {multiplePlaces: query[itemKey]}}})
+                if multipleEvents is not True:
+                    orQuery.append({'meta.' + multipleEvents: query[itemKey]})
+                    orQuery.append({'meta.' + EventsListName:
+                           {'$elemMatch': {multipleEvents: query[itemKey]}}})
                 if '$and' in query:
                     query['$and'].append({'$or': orQuery})
                 elif '$or' in query:
@@ -392,9 +358,9 @@ class GRITSDatabase(Resource):
             'meta.date': {'$gte': sDate, '$lt': eDate}
         }
 
-        self.addToQuery(query, params, 'country', useRegex, multiplePlaces=True)
-        self.addToQuery(query, params, 'disease', useRegex, multiplePlaces='diseases')
-        self.addToQuery(query, params, 'species', useRegex, multiplePlaces=True)
+        self.addToQuery(query, params, 'country', useRegex, multipleEvents=True)
+        self.addToQuery(query, params, 'disease', useRegex, multipleEvents='diseases')
+        self.addToQuery(query, params, 'species', useRegex, multipleEvents=True)
         self.addToQuery(query, params, 'feed', useRegex)
         self.addToQuery(query, params, 'description', useRegex)
         self.addToQuery(
@@ -419,22 +385,6 @@ class GRITSDatabase(Resource):
         result = list(cursor)
         if not self.checkAccess(priv=True, fail=False):
             result = [model.filter(i) for i in result]
-
-        if self.boolParam('randomSymptoms', params, False):
-            try:
-                filterBySymptom = set(json.loads(params['filterSymptoms']))
-            except Exception:
-                filterBySymptom = False
-            filtered = []
-            for r in result:
-                r['meta']['symptoms'] = self.getSymptomFromId(r['_id'])
-                if filterBySymptom:
-                    s2 = set(r['meta']['symptoms'])
-                    if not filterBySymptom.isdisjoint(s2):
-                        filtered.append(r)
-                else:
-                    filtered.append(r)
-            result = filtered
 
         if self.boolParam('geoJSON', params, False):
             result = self.togeoJSON(result)
@@ -513,17 +463,6 @@ class GRITSDatabase(Resource):
         .param(
             "regex",
             "Enable regex search for text fields",
-            required=False,
-            dataType='boolean'
-        )
-        .param(
-            "filterSymptoms",
-            "A json object with symptoms to search for in randomSymptoms is true",
-            required=False
-        )
-        .param(
-            "randomSymptoms",
-            "Enable random symptoms matching",
             required=False,
             dataType='boolean'
         )
