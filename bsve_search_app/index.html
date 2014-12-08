@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta charset="UTF-8" />
+    <meta name="google" content="notranslate">
+    <meta http-equiv="Content-Language" content="en" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+    <title>Girder App</title>
+
+    <!-- Load in BSVE base app styles -->
+    <link rel="stylesheet" type="text/css" href="http://harbinger3-dev.elasticbeanstalk.com/workbench/styles/harbingerApp.css"/>
+
+    <style>
+    .content {
+        /*
+        padding-left: 40px;
+        */
+        padding-left: 4px;
+        overflow: hidden;
+        width: 320px;
+    }
+    .control label {
+        display: inline-block;
+        width: 88px;
+        margin: 0;
+    }
+    .control input {
+        display: inline-block;
+        width: 180px;
+        padding: 2px;
+        margin: 0;
+    }
+    .control input[type=checkbox] {
+        width: auto;
+    }
+    .control {
+        padding-bottom: 2px;
+    }
+    .buttons-right {
+        float: right;
+    }
+    .buttons button {
+        margin-left: auto;
+        margin-right: 0;
+        display: inline-block;
+    }
+    .buttons:after {
+        clear: both;
+    }
+
+    .grits-result {
+        margin-bottom: 4px;
+    }
+    .grits-result .result-date {
+        display: inline;
+        font-weight: bold;
+        margin-right: 5px;
+    }
+    .grits-result .result-description {
+        display: inline;
+    }
+
+    </style>
+
+    <!-- Load jQuery -->
+    <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+    <!-- Load Angular JS -->
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/angular.js/1.2.20/angular.min.js"></script>
+    <!-- Dependency for BSVE Components -->
+    <script type="text/javascript" src="http://harbinger3-dev.elasticbeanstalk.com/workbench/vendor/angular-strap/angular-strap.js"></script>
+    <!-- Load BSVE Angular Components -->
+    <script type="text/javascript" src="http://harbinger3-dev.elasticbeanstalk.com/workbench/apps/harbingerComponents.js"></script>
+    <!-- Load BSVE APP API -->
+    <script type="text/javascript" src="http://harbinger3-dev.elasticbeanstalk.com/workbench/apps/API.js"></script>
+
+    <!-- APP Implementation -->
+    <script type="text/javascript">
+    angular.module('Girder App', ['harbingerComponents']);
+    function AppController($scope, $http)
+    {
+        $scope.ready = false;
+
+        $scope.loginParams = [{
+                key: 'url',
+                value: 'http://localhost:8081',
+                label: 'Girder URL',
+                placeholder: 'URL to girder server',
+                title: 'Do not include a trailing slash.'
+            },{ key: 'username', label: 'User Name'
+            },{ key: 'password', label: 'Password', style: 'password'
+        }];
+        $scope.params = [{
+                key: 'start',
+                label: 'Start date',
+                placeholder: 'Start date (inclusive)',
+                title: 'Date format is YYYY-MM-DD.'
+            },{
+                key: 'end',
+                label: 'End date',
+                placeholder: 'End date (exclusive)',
+                title: 'Date format is YYYY-MM-DD.'
+            },{ key: 'country', label: 'Country'
+            },{ key: 'disease', label: 'Disease'
+            },{ key: 'species', label: 'Species'
+            },{ key: 'description', label: 'Description'
+            },{ key: 'diagnosis', label: 'Diagnosis'
+            },{ key: 'id', label: 'Incident ID'
+            },{
+                key: 'limit',
+                label: 'Limit',
+                placeholder: '(default is 50)'
+            },{ key: 'offset', label: 'Offset'
+            },{ key: 'geoJSON', label: 'Use geoJSON', style: 'checkbox'
+            },{ key: 'regex', label: 'Regex search', style: 'checkbox'
+        }];
+        for (var i = 0; i < $scope.params.length; i += 1) {
+            var param = $scope.params[i];
+            param.style = param.style || 'text';
+            param.placeholder = param.placeholder || '';
+        }
+
+        $scope.onReady = function() {
+            // API has a connection with BSVE workbench
+            $scope.ready = true;
+        };
+        $scope.login = function() {
+            var url, username, password;
+            for (var i = 0; i < $scope.loginParams.length; i += 1) {
+                var param = $scope.loginParams[i];
+                switch (param.key) {
+                    case 'url': url = param.value; break;
+                    case 'username': username = param.value; break;
+                    case 'password': password = param.value; break;
+                }
+            }
+            if (username && password) {
+                $scope.url = url;
+                var auth = 'Basic ' + btoa(username + ':' + password);
+                $http.defaults.headers.common.Authorization = auth;
+                $http.get(url + '/api/v1/user/authentication').success(
+                        function (data) {
+                    $scope.userToken = data.authToken.token;
+                    $scope.loginError = null;
+                    $scope.resultsPending = null;
+                }).error(function (error) {
+                    $scope.loginError = error.message;
+                });
+            }
+        };
+        $scope.logout = function() {
+            $scope.results = null;
+            $scope.resultsError = null;
+            $scope.userToken = null;
+            $scope.loginError = null;
+            $scope.resultsPending = null;
+        };
+        $scope.search = function() {
+            var params = {}, url, username, password;
+            for (var i = 0; i < $scope.params.length; i += 1) {
+                var param = $scope.params[i];
+                if (param.value !== null && param.value !== undefined && param.value.length) {
+                    params[param.key] = param.value;
+                }
+            }
+            params.token = $scope.userToken;
+            $scope.results = null;
+            $scope.resultsError = null;
+            $scope.resultsPending = true;
+            $http.get($scope.url + '/api/v1/resource/grits?' + $.param(params)
+                    ).success(function (data) {
+                for (var i=0; i<data.length; i++) {
+                    data[i].link = 'http://www.healthmap.org/ln.php?' + data[i].name.substr(0, data[i].name.length-4);
+                }
+                $scope.resultsPending = null;
+                $scope.results = data;
+                $scope.resultsError = null;
+            }).error(function (error) {
+                $scope.resultsPending = null;
+                $scope.results = null;
+                $scope.resultsError = 'Failed to get any results';
+            });
+        };
+        API.init( $http, $scope.onReady );
+    }
+    </script>
+</head>
+<body ng-app="Girder App" ng-controller="AppController">
+    <div class="row-fluid">
+        <!--
+        <div hb-status-buttons add-item="addItem(type)"></div>
+        -->
+        <div class="content">
+            <h2>Girder GRITS Search</h2>
+
+<form novalidate ng-if='!userToken'>
+    <div class='control' ng-repeat='param in loginParams'>
+        <label for='{{"girder-"+param.key}}'>{{param.label}}</label>
+        <input type='{{param.style}}' ng-model='param.value'
+         placeholder='{{param.placeholder}}' title='{{param.title}}'/>
+    </div>
+    <div class='buttons-right'>
+        <button ng-click="login()">Log In</button>
+    </div>
+    <div ng-if='loginError'>
+        <h3>Error</h3>
+        <div class='login-error'>{{loginError}}</div>
+    </div>
+</form>
+
+<form novalidate ng-if='userToken'>
+    <div class='control' ng-repeat='param in params'>
+        <label for='{{"girder-"+param.key}}'>{{param.label}}</label>
+        <input type='{{param.style}}' ng-model='param.value'
+         placeholder='{{param.placeholder}}' title='{{param.title}}'/>
+    </div>
+    <div class='buttons'>
+        <button ng-click="logout()">Log Out</button>
+        <div class='buttons-right'>
+            <button ng-click="search()">Search</button>
+        </div>
+    </div>
+    <div ng-if='resultsError'>
+        <h3>Error</h3>
+        <div class='results-error'>{{resultsError}}</div>
+    </div>
+</form>
+
+<div ng-if='resultsPending'>
+    <h3>Searching...</h3>
+</div>
+<div ng-if='results != null'>
+    <h3>Results</h3>
+    <div class='grits-result' ng-repeat='result in results'>
+        <div class='result-date'>{{result.meta.date}}</div>
+        <div class='result-description'><a href='{{result.link}}'>{{result.description}}</a></div>
+    </div>
+</div>
+
+        </div>
+    </div>
+
+</body>
+</html>
