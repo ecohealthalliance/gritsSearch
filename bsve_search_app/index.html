@@ -136,7 +136,26 @@
     angular.module('Girder App', ['harbingerComponents']);
     function AppController($scope, $http)
     {
-        var geo_map = null, geo_layer, geo_feature;
+        var geo_map = null, geo_layer, geo_feature, drawWait = false,
+            drawQueued = false;
+
+        function triggerDraw() {
+            if (!drawWait) {
+                geo_map.draw();
+                drawWait = true;
+                window.setTimeout(function () {
+                    drawWait = false;
+                }, 100);
+                return;
+            }
+            if (!drawQueued) {
+                drawQueued = true;
+                window.setTimeout(function () {
+                    geo_map.draw();
+                    drawQueued = false;
+                }, 100);
+            }
+        }
 
         function showMap(data) {
             if (!geo_map) {
@@ -168,15 +187,17 @@
                         y: d.geometry.coordinates[1]
                     };
                 })
+                .geoOff(geo.event.feature.mouseover)
                 .geoOn(geo.event.feature.mouseover, function (evt) {
                     evt.data.selected = true;
                     this.modified();
-                    geo_map.draw();
+                    triggerDraw();
                 })
+                .geoOff(geo.event.feature.mouseout)
                 .geoOn(geo.event.feature.mouseout, function (evt) {
                     delete evt.data.selected;
                     this.modified();
-                    geo_map.draw();
+                    triggerDraw();
                 });
             geo_map.draw();
 
