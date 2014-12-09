@@ -48,7 +48,7 @@ def findOne(model, query):
 
 def getInfo():
     info = {}
-    userModel = ModelImporter().model('user')
+    userModel = ModelImporter.model('user')
     user = findOne(userModel, {'login': config['user']})
     info['user'] = user
 
@@ -59,7 +59,7 @@ def getInfo():
             code=405
         )
 
-    groupModel = ModelImporter().model('group')
+    groupModel = ModelImporter.model('group')
     group = findOne(groupModel, {'name': config['group']})
 
     if group is None:
@@ -86,7 +86,7 @@ def getInfo():
     groupModel.addUser(groupPriv, user, level=AccessType.ADMIN)
     info['groupPriv'] = groupPriv
 
-    collectionModel = ModelImporter().model('collection')
+    collectionModel = ModelImporter.model('collection')
     collection = findOne(
         model=collectionModel,
         query={'name': config['collectionName']},
@@ -107,7 +107,7 @@ def getInfo():
         )
     info['collection'] = collection
 
-    folderModel = ModelImporter().model('folder')
+    folderModel = ModelImporter.model('folder')
     folder = findOne(
         model=folderModel,
         query={
@@ -159,7 +159,7 @@ class GRITSDatabase(Resource):
         g = self.gritsInfo()['group']
         p = self.gritsInfo()['groupPriv']
         user = self.getCurrentUser()
-        groupModel = ModelImporter().model('group')
+        groupModel = ModelImporter.model('group')
 
         try:
             groupModel.requireAccess(p, user, level)
@@ -307,7 +307,7 @@ class GRITSDatabase(Resource):
     @loadmodel(map={'id': 'item'}, model='item', level=AccessType.WRITE)
     def gritsSetPrivateMetadata(self, item, params):
         self.checkAccess(level=AccessType.WRITE, priv=True)
-        itemModel = ModelImporter().model('item')
+        itemModel = ModelImporter.model('item')
 
         try:
             metadata = bson.json_util.loads(cherrypy.request.body.read())
@@ -373,7 +373,7 @@ class GRITSDatabase(Resource):
         )
         self.addToQuery(query, params, 'id', useRegex, 'name')
 
-        model = ModelImporter().model('item')
+        model = ModelImporter.model('item')
         logger.info('gritsSearch query\n'+pprint.pformat(query))
         cursor = model.find(
             query=query,
@@ -472,6 +472,7 @@ class GRITSDatabase(Resource):
 
 
 def load(info):
+    ModelImporter.model('item').collection.ensure_index('meta.date')
     db = GRITSDatabase()
     info['apiRoot'].resource.route('GET', ('grits',), db.gritsSearch)
     info['apiRoot'].resource.route(

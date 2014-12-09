@@ -1,4 +1,5 @@
 {
     "name": "grits",
-    "description": "Custom routes for accessing GRITS documents."
+    "description": "Custom routes for accessing GRITS documents.",
+    "version": "1.0.0"
 }
