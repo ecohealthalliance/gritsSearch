@@ -3,6 +3,8 @@ import os
 import pprint
 import re
 import random
+import time
+
 from dateutil.parser import parse as dateParse
 from datetime import datetime
 
@@ -142,9 +144,14 @@ def commonErrors(desc):
 
 class GRITSDatabase(Resource):
     def __init__(self):
-        self._symptomsTable = None
-        self._gritsFolder = None
         self._info = None
+        self._databaseIsWellFormed = False
+        folder = self.gritsFolder()
+        oldRecords = ModelImporter.model('item').find({
+            'folderId': folder['_id'],
+            '$and': [{'meta.events': {'$elemMatch': {'diseases': {
+            '$exists': False}}}}, {'meta.disease': {'$exists': True}}]})
+        self._databaseIsWellFormed = not oldRecords.count()
 
     def gritsInfo(self):
         # if self._info is None:
@@ -268,7 +275,8 @@ class GRITSDatabase(Resource):
         index = map(lambda x: x >= val, table['cdf']).index(True)
         return table['value'][index]
 
-    def addToQuery(self, query, params, key, useRegex, itemKey=None, arrayKey=None, multipleEvents=False):
+    def addToQuery(self, query, params, key, useRegex, itemKey=None,
+                   arrayKey=None, multipleEvents=False):
         value = params.get(key)
         if value is not None:
             if itemKey is None:
@@ -286,11 +294,16 @@ class GRITSDatabase(Resource):
                     query[itemKey] = {'$elemMatch': {}}
                     query[itemKey]['$elemMatch'][arrayKey] = value
             if multipleEvents:
-                orQuery = [{itemKey: query[itemKey]},
-                           {'meta.' + EventsListName:
-                           {'$elemMatch': {key: query[itemKey]}}}]
+                orQuery = []
+                if not self._databaseIsWellFormed:
+                    orQuery.append({itemKey: query[itemKey]})
+                if multipleEvents is True or not self._databaseIsWellFormed:
+                    orQuery.append({'meta.' + EventsListName:
+                           {'$elemMatch': {key: query[itemKey]}}})
                 if multipleEvents is not True:
-                    orQuery.append({'meta.' + multipleEvents: query[itemKey]})
+                    if not self._databaseIsWellFormed:
+                        orQuery.append(
+                            {'meta.' + multipleEvents: query[itemKey]})
                     orQuery.append({'meta.' + EventsListName:
                            {'$elemMatch': {multipleEvents: query[itemKey]}}})
                 if '$and' in query:
@@ -344,19 +357,23 @@ class GRITSDatabase(Resource):
     @access.user
     def gritsSearch(self, params):
 
+        startTime = time.time()
         folder = self.gritsFolder()
 
         self.checkAccess()
 
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
-        sDate = dateParse(params.get('start', '1990-01-01'))
-        eDate = dateParse(params.get('end', str(datetime.now())))
+        query = {'folderId': folder['_id'] }
         useRegex = self.boolParam('regex', params, False)
 
-        query = {
-            'folderId': folder['_id'],
-            'meta.date': {'$gte': sDate, '$lt': eDate}
-        }
+        if params.get('start', None):
+            sDate = dateParse(params.get('start', '1990-01-01'))
+            query['meta.date'] = {'$gte': sDate}
+        if params.get('end', None):
+            eDate = dateParse(params.get('end', str(datetime.now())))
+            if not 'meta.date' in query:
+                query['meta.date'] = {}
+            query['meta.date']['$lt'] = eDate
 
         self.addToQuery(query, params, 'country', useRegex, multipleEvents=True)
         self.addToQuery(query, params, 'disease', useRegex, multipleEvents='diseases')
@@ -380,14 +397,19 @@ class GRITSDatabase(Resource):
             fields=None,
             offset=offset,
             limit=limit,
-            sort=sort
+            sort=sort,
+            timeout=False,
+            exhaust=(limit==0),
         )
         result = list(cursor)
+        resultLength = len(result)
         if not self.checkAccess(priv=True, fail=False):
             result = [model.filter(i) for i in result]
 
         if self.boolParam('geoJSON', params, False):
             result = self.togeoJSON(result)
+        logger.info('gritsSearch duration %5.3fs for %d results' % (
+            time.time() - startTime, resultLength))
         return result
 
     gritsSearch.description = (
@@ -472,7 +494,17 @@ class GRITSDatabase(Resource):
 
 
 def load(info):
-    ModelImporter.model('item').collection.ensure_index('meta.date')
+    indices = (
+        'meta.date',
+        [('meta.disease', 1), ('meta.date', 1)],
+        [('meta.' + EventsListName + '.species', 1), ('meta.date', 1)],
+        [('meta.' + EventsListName + '.diseases', 1), ('meta.date', 1)],
+        [('meta.' + EventsListName + '.country', 1), ('meta.date', 1)],
+        [('meta.feed', 1), ('meta.date', 1)],
+        [('meta.diagnosis.diseases.name', 1), ('meta.date', 1)],
+    )
+    for index in indices:
+        ModelImporter.model('item').collection.ensure_index(index)
     db = GRITSDatabase()
     info['apiRoot'].resource.route('GET', ('grits',), db.gritsSearch)
     info['apiRoot'].resource.route(
