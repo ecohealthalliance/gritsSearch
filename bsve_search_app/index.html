@@ -85,7 +85,8 @@
     .grits-results-container {
         width: 50%;
         height: calc(100% + 15px);
-        overflow: scroll;
+        overflow-y: scroll;
+        overflow-x: hidden;
         float: right;
         position: relative;
         top: -30px;
@@ -369,10 +370,10 @@
                  placeholder='{{param.placeholder}}' title='{{param.title}}'/>
             </div>
             <div class='buttons'>
-                <button ng-click="logout()">Log Out</button>
                 <div class='buttons-right'>
                     <button ng-click="search()">Search</button>
                 </div>
+                <button ng-click="logout()">Log Out</button>
             </div>
             <div ng-if='resultsError'>
                 <h3>Error</h3>
@@ -386,7 +387,7 @@
             <h3>Searching...</h3>
         </div>
         <div ng-if='results != null'>
-            <h3>Results</h3>
+            <h3>Results ({{results.length}})</h3>
             <div class='grits-result' ng-repeat='result in results'
                 ng-mouseover='selectAlert(result)' ng-mouseleave='unselectAlert(result)'
                 ng-click='transitionTo(result)'>
