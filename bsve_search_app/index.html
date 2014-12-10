@@ -14,7 +14,7 @@
 
     <style>
     .content {
-        /*
+        /* The BSVE example had this padding for some button-like items.
         padding-left: 40px;
         */
         padding-left: 4px;
@@ -55,7 +55,7 @@
 
     .grits-login {
         position: relative;
-        left: 25%;
+        left: 0%;
         width: 50%;
         margin-bottom: 25px;
     }
@@ -73,9 +73,19 @@
         margin-right: 5px;
         transition: color 100ms;
     }
-    .grits-result:hover {
-        color: firebrick !important;
-        background-color: rgba(255,255,0,0.5) !important;
+    .grits-result:hover,.grits-result.highlighted {
+        color: firebrick;
+        background-color: rgba(255,255,0,0.5);
+        box-shadow: 0px 0px 5px black;
+    }
+    .grits-result.picked {
+        color: firebrick;
+        background-color: rgba(0,255,255,0.5);
+        box-shadow: 0px 0px 5px black;
+    }
+    .grits-result.picked:hover {
+        color: firebrick;
+        background-color: rgba(255,255,128,0.5);
         box-shadow: 0px 0px 5px black;
     }
     .grits-result .result-description {
@@ -84,18 +94,17 @@
 
     .grits-results-container {
         width: 50%;
-        height: calc(100% + 15px);
+        height: 100%;
         overflow-y: scroll;
         overflow-x: hidden;
         float: right;
-        position: relative;
-        top: -30px;
         padding-left: 5px;
         padding-right: 5px;
     }
     .grits-search-form {
         width: 50%;
         float: left;
+        height: 100%;
     }
     .grits-container:after {
         clear: both;
@@ -105,10 +114,10 @@
         height: inherit;
     }
     .grits-row-1 {
-        height: 37%;
+        height: 43%;
     }
     .grits-row-2 {
-        height: 63%;
+        height: 57%;
     }
 
     #grits-map {
@@ -120,7 +129,8 @@
     <!-- Load jQuery -->
     <script type="text/javascript" src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
     <!-- Load Angular JS -->
-    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/angular.js/1.2.20/angular.min.js"></script>
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/angular.js/1.3.3/angular.min.js"></script>
+    <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/angular.js/1.3.3/angular-cookies.min.js"></script>
     <!-- Dependency for BSVE Components -->
     <script type="text/javascript" src="http://harbinger3-dev.elasticbeanstalk.com/workbench/vendor/angular-strap/angular-strap.js"></script>
     <!-- Load BSVE Angular Components -->
@@ -134,11 +144,11 @@
 
     <!-- APP Implementation -->
     <script type="text/javascript">
-    angular.module('Girder App', ['harbingerComponents']);
-    function AppController($scope, $http)
-    {
+    var app = angular.module(
+        'Girder App', ['harbingerComponents', 'ngCookies']);
+    app.controller('AppController', function($scope, $http, $cookies) {
         var geo_map = null, geo_layer, geo_feature, drawWait = false,
-            drawQueued = false;
+            drawQueued = false, lastPicked = null;
 
         function triggerDraw() {
             if (!drawWait) {
@@ -176,7 +186,10 @@
             }
             geo_feature.data(data)
                 .style({
-                    fillColor: function (d) { return d.selected ? 'red' : 'steelblue'; },
+                    fillColor: function (d) {
+                        return d.picked ? (d.selected ? '#FFFF80' : 'aqua') :
+                               d.selected ? 'yellow' : 'steelblue';
+                    },
                     fillOpacity: function (d) { return d.selected ? 0.9 : 0.65; },
                     strokeColor: 'black',
                     strokeWidth: 1,
@@ -188,17 +201,35 @@
                         y: d.geometry.coordinates[1]
                     };
                 })
+                .geoOff(geo.event.feature.mouseclick)
+                .geoOn(geo.event.feature.mouseclick, function (evt) {
+                    var elemId = '#alert-' + evt.data.properties.id;
+                    $('.picked').removeClass('picked');
+                    $(elemId).addClass('picked')[0].scrollIntoView();
+                    if (lastPicked) {
+                        lastPicked.picked = false;
+                    }
+                    lastPicked = evt.data;
+                    evt.data.picked = true;
+                    this.modified();
+                    triggerDraw();
+                })
                 .geoOff(geo.event.feature.mouseover)
                 .geoOn(geo.event.feature.mouseover, function (evt) {
                     evt.data.selected = true;
                     this.modified();
                     triggerDraw();
+                    var elemId = '#alert-' + evt.data.properties.id;
+                    $('.highlighted').removeClass('highlighted');
+                    $(elemId).addClass('highlighted');
                 })
                 .geoOff(geo.event.feature.mouseout)
                 .geoOn(geo.event.feature.mouseout, function (evt) {
                     delete evt.data.selected;
                     this.modified();
                     triggerDraw();
+                    var elemId = '#alert-' + evt.data.properties.id;
+                    $(elemId).removeClass('highlighted');
                 });
             geo_map.draw();
 
@@ -206,18 +237,28 @@
         $scope.ready = false;
 
         $scope.selectAlert = function (result) {
+            $('.highlighted').removeClass('highlighted');
             result.selected = true;
             geo_feature.modified();
             geo_map.draw();
         };
 
         $scope.unselectAlert = function (result) {
+            $('.highlighted').removeClass('highlighted');
             delete result.selected;
             geo_feature.modified();
             geo_map.draw();
         };
 
         $scope.transitionTo = function (result) {
+            var elemId = '#alert-' + result.properties.id;
+            $('.picked').removeClass('picked');
+            $(elemId).addClass('picked');
+            if (lastPicked) {
+                lastPicked.picked = false;
+            }
+            lastPicked = result;
+            result.picked = true;
             geo_map.transition({
                 center: {
                     x: result.geometry.coordinates[0],
@@ -229,9 +270,13 @@
             });
         };
 
+        $scope.url = 'http://localhost:8081';
+        if ($cookies.girderUrl) {
+            $scope.url = $cookies.girderUrl;
+        }
         $scope.loginParams = [{
                 key: 'url',
-                value: 'http://localhost:8081',
+                value: $scope.url,
                 label: 'Girder URL',
                 placeholder: 'URL to girder server',
                 title: 'Do not include a trailing slash.'
@@ -257,9 +302,12 @@
             },{
                 key: 'limit',
                 label: 'Limit',
-                placeholder: '(default is 50)'
+                placeholder: '(default is 50, 0 for all)'
             },{ key: 'offset', label: 'Offset'
         }];
+        if (!$scope.userToken && $cookies.girderToken) {
+            $scope.userToken = $cookies.girderToken;
+        }
         for (var i = 0; i < $scope.params.length; i += 1) {
             var param = $scope.params[i];
             param.style = param.style || 'text';
@@ -287,6 +335,8 @@
                 $http.get(url + '/api/v1/user/authentication').success(
                         function (data) {
                     $scope.userToken = data.authToken.token;
+                    $cookies.girderToken = $scope.userToken;
+                    $cookies.girderUrl = url;
                     $scope.loginError = null;
                     $scope.resultsPending = null;
                 }).error(function (error) {
@@ -298,6 +348,7 @@
             $scope.results = null;
             $scope.resultsError = null;
             $scope.userToken = null;
+            $cookies.girderToken = '';
             $scope.loginError = null;
             $scope.resultsPending = null;
         };
@@ -332,8 +383,8 @@
             });
         };
 
-        API.init( $http, $scope.onReady );
-    }
+        API.init($http, $scope.onReady);
+    });
     </script>
 </head>
 <body ng-app="Girder App" ng-controller="AppController">
@@ -342,10 +393,10 @@
         <div hb-status-buttons add-item="addItem(type)"></div>
         -->
         <div class="content">
-            <h2>Girder GRITS Search</h2>
 
-<div class='grits-login'>
-    <form novalidate ng-if='!userToken'>
+<div class='grits-login' ng-if='!userToken'>
+    <h2>Girder GRITS Search</h2>
+    <form novalidate>
         <div class='control' ng-repeat='param in loginParams'>
             <label for='{{"girder-"+param.key}}'>{{param.label}}</label>
             <input type='{{param.style}}' ng-model='param.value'
@@ -360,9 +411,10 @@
         </div>
     </form>
 </div>
-<div class='grits-container' ng-if='userToken'>
-    <div class='grits-row-1'>
+<div class='grits-container' ng-show='userToken'>
+    <div class='grits-row-1' ng-if='userToken'>
         <div class='grits-search-form'>
+        <h2>Girder GRITS Search</h2>
         <form novalidate>
             <div class='control' ng-repeat='param in params'>
                 <label for='{{"girder-"+param.key}}'>{{param.label}}</label>
@@ -375,27 +427,30 @@
                 </div>
                 <button ng-click="logout()">Log Out</button>
             </div>
-            <div ng-if='resultsError'>
-                <h3>Error</h3>
-                <div class='results-error'>{{resultsError}}</div>
-            </div>
         </form>
         </div>
 
         <div class='grits-results-container'>
-        <div ng-if='resultsPending'>
-            <h3>Searching...</h3>
-        </div>
-        <div ng-if='results != null'>
-            <h3>Results ({{results.length}})</h3>
-            <div class='grits-result' ng-repeat='result in results'
-                ng-mouseover='selectAlert(result)' ng-mouseleave='unselectAlert(result)'
-                ng-click='transitionTo(result)'>
-                <div class='result-date'>{{result.properties.date}}</div>
-                <div class='result-description'><a
-                        href='{{result.properties.link}}' target='grits-link'>{{result.properties.summary}}</a></div>
+            <div ng-if='resultsPending'>
+                <h3>Searching...</h3>
             </div>
-        </div>
+            <div ng-if='results != null'>
+                <h3>Results ({{results.length}})</h3>
+                <div class='grits-result' ng-repeat='result in results'
+                        ng-mouseover='selectAlert(result)'
+                        ng-mouseleave='unselectAlert(result)'
+                        ng-click='transitionTo(result)'
+                        id='alert-{{result.properties.id}}'
+                        >
+                    <div class='result-date'>{{result.properties.date}}</div>
+                    <div class='result-description'><a
+                            href='{{result.properties.link}}' target='grits-link'>{{result.properties.summary}}</a></div>
+                </div>
+            </div>
+            <div ng-if='resultsError'>
+                <h3>Error</h3>
+                <div class='results-error'>{{resultsError}}</div>
+            </div>
         </div>
             </div>
     <div class='grits-row-2'>
