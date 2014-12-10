@@ -203,6 +203,10 @@
                 })
                 .geoOff(geo.event.feature.mouseclick)
                 .geoOn(geo.event.feature.mouseclick, function (evt) {
+                    if (evt.zIndex !== 0) {
+                        // Only handle the top element clicked
+                        return;
+                    }
                     var elemId = '#alert-' + evt.data.id;
                     $('.picked').removeClass('picked');
                     $(elemId).addClass('picked')[0].scrollIntoView();
@@ -211,6 +215,7 @@
                     }
                     lastPicked = evt.data;
                     evt.data.picked = true;
+                    reorderData();
                     this.modified();
                     triggerDraw();
                 })
@@ -220,7 +225,6 @@
                     this.modified();
                     triggerDraw();
                     var elemId = '#alert-' + evt.data.id;
-                    $('.highlighted').removeClass('highlighted');
                     $(elemId).addClass('highlighted');
                 })
                 .geoOff(geo.event.feature.mouseout)
@@ -232,7 +236,6 @@
                     $(elemId).removeClass('highlighted');
                 });
             geo_map.draw();
-
         }
 
         function reorderData() {
