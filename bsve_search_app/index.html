@@ -205,6 +205,10 @@
                 })
                 .geoOff(geo.event.feature.mouseclick)
                 .geoOn(geo.event.feature.mouseclick, function (evt) {
+                    if (evt.zIndex !== 0) {
+                        // Only handle the top element clicked
+                        return;
+                    }
                     var elemId = '#alert-' + evt.data.ids[0];
                     $('.picked').removeClass('picked');
                     $(elemId).addClass('picked')[0].scrollIntoView();
@@ -213,6 +217,7 @@
                     }
                     lastPicked = evt.data;
                     evt.data.picked = true;
+                    reorderData();
                     this.modified();
                     triggerDraw();
                 })
@@ -222,7 +227,7 @@
                     this.modified();
                     triggerDraw();
                     var elemId = '#alert-' + evt.data.ids[0];
-                    $('.highlighted').removeClass('highlighted');
+                    // $('.highlighted').removeClass('highlighted');
                     $(elemId).addClass('highlighted');
                 })
                 .geoOff(geo.event.feature.mouseout)
@@ -234,8 +239,25 @@
                     $(elemId).removeClass('highlighted');
                 });
             geo_map.draw();
-
         }
+
+        function reorderData() {
+            // reorders the data in point feature class
+            var data = geo_feature.data();
+            var newData = [];
+            data.forEach(function (d) {
+                if (!d.selected) {
+                    newData.push(d);
+                }
+            });
+            data.forEach(function (d) {
+                if (d.selected) {
+                    newData.push(d);
+                }
+            });
+            geo_feature.data(newData);
+        }
+
         $scope.ready = false;
 
         $scope.selectAlert = function (result) {
@@ -243,6 +265,7 @@
             for (var n=0; n<result.points.length; n++) {
                 result.points[n].selected = true;
             }
+            reorderData();
             geo_feature.modified();
             triggerDraw();
         };
