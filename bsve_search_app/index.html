@@ -14,13 +14,15 @@
 
     <style>
     .content {
+        overflow: hidden;
+        width: 640px;
+        height: 800px;
+    }
+    .grits-login,.grits-row-1 {
         /* The BSVE example had this padding for some button-like items.
         padding-left: 40px;
         */
         padding-left: 4px;
-        overflow: hidden;
-        width: 640px;
-        height: 800px;
     }
     .control label {
         display: inline-block;
@@ -203,7 +205,7 @@
                 })
                 .geoOff(geo.event.feature.mouseclick)
                 .geoOn(geo.event.feature.mouseclick, function (evt) {
-                    var elemId = '#alert-' + evt.data.id;
+                    var elemId = '#alert-' + evt.data.ids[0];
                     $('.picked').removeClass('picked');
                     $(elemId).addClass('picked')[0].scrollIntoView();
                     if (lastPicked) {
@@ -219,7 +221,7 @@
                     evt.data.selected = true;
                     this.modified();
                     triggerDraw();
-                    var elemId = '#alert-' + evt.data.id;
+                    var elemId = '#alert-' + evt.data.ids[0];
                     $('.highlighted').removeClass('highlighted');
                     $(elemId).addClass('highlighted');
                 })
@@ -228,7 +230,7 @@
                     delete evt.data.selected;
                     this.modified();
                     triggerDraw();
-                    var elemId = '#alert-' + evt.data.id;
+                    var elemId = '#alert-' + evt.data.ids[0];
                     $(elemId).removeClass('highlighted');
                 });
             geo_map.draw();
@@ -242,7 +244,7 @@
                 result.points[n].selected = true;
             }
             geo_feature.modified();
-            geo_map.draw();
+            triggerDraw();
         };
 
         $scope.unselectAlert = function (result) {
@@ -251,7 +253,7 @@
                 delete result.points[n].selected;
             }
             geo_feature.modified();
-            geo_map.draw();
+            triggerDraw();
         };
 
         $scope.transitionTo = function (result) {
@@ -263,12 +265,46 @@
             }
             lastPicked = result;
             result.picked = true;
+            var center = result.points[0].coordinates;
+            var zoom = 5;
+            if (result.points.length > 1) {
+                /* If our map wrapped east to west, this would be wrong. */
+                var extents = [center[0], center[1], center[0], center[1]];
+                for (var i=1; i<result.points.length; i++) {
+                    var coor = result.points[i].coordinates;
+                    if (coor[0]<extents[0]) { extents[0] = coor[0]; }
+                    if (coor[1]<extents[1]) { extents[1] = coor[1]; }
+                    if (coor[0]>extents[2]) { extents[2] = coor[0]; }
+                    if (coor[1]>extents[3]) { extents[3] = coor[1]; }
+                }
+                center = [(extents[0]+extents[2])*0.5,
+                          (extents[1]+extents[3])*0.5];
+                zoom = geo_map.zoom();
+                var upperLeft = geo_map.displayToGcs({x: 0, y: 0});
+                var lowerRight = geo_map.displayToGcs({
+                    x: $('#grits-map').width(), y: $('#grits-map').height()});
+                var fillX = (extents[2]-extents[0])/(lowerRight.x-upperLeft.x);
+                var fillY = (extents[3]-extents[1])/(upperLeft.y-lowerRight.y);
+                var fill = fillX > fillY ? fillX : fillY;
+                while (fill > 0.9) {
+                    zoom -= 1;
+                    fill /= 2;
+                }
+                while (fill < 0.45) {
+                    zoom += 1;
+                    fill *= 2;
+                }
+                console.log('target zoom '+zoom+' '+fill); 
+                if (zoom > 6) {
+                    zoom = 6;
+                }
+            }
             geo_map.transition({
                 center: {
-                    x: result.points[0].coordinates[0],
-                    y: result.points[0].coordinates[1]
+                    x: center[0],
+                    y: center[1]
                 },
-                zoom: 5,
+                zoom: zoom,
                 interp: d3.interpolateZoom,
                 duration: 1000
             });
@@ -356,6 +392,17 @@
             $scope.loginError = null;
             $scope.resultsPending = null;
         };
+        $scope.collectPoint = function (points, id, coordinates) {
+            for (var i=0; i<points.length; i++) {
+                if (points[i].coordinates[0] == coordinates[0] && points[i].coordinates[1] == coordinates[1]) {
+                    points[i]['ids'].push(id);
+                    return points[i];
+                }
+            }
+            var point = {ids: [id], coordinates: coordinates};
+            points.push(point);
+            return point;
+        };
         $scope.search = function() {
             var params = {}, url, username, password;
             for (var i = 0; i < $scope.params.length; i += 1) {
@@ -382,21 +429,11 @@
                     if ($.isArray(item.geometry.coordinates[0])) {
                         item.numPoints = item.geometry.coordinates.length;
                         for (var n=0; n < item.numPoints; n++) {
-                            var point = {
-                                id: item.properties.id,
-                                coordinates: item.geometry.coordinates[n]
-                            };
-                            item.points.push(point);
-                            points.push(point);
+                            item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates[n]));
                         }
                     } else {
                         item.numPoints = 1;
-                        var point = {
-                            id: item.properties.id,
-                            coordinates: item.geometry.coordinates
-                        };
-                        item.points.push(point);
-                        points.push(point);
+                        item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates));
                     }
                 }
                 $scope.resultsPending = null;
