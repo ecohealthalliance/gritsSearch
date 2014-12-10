@@ -496,7 +496,7 @@ class GRITSDatabase(Resource):
 def load(info):
     indices = (
         'meta.date',
-        [('meta.disease', 1), ('meta.date', 1)],
+        [('meta.disease', 1), ('meta.diagnosis.diseases.name', 1)],
         [('meta.' + EventsListName + '.species', 1), ('meta.date', 1)],
         [('meta.' + EventsListName + '.diseases', 1), ('meta.date', 1)],
         [('meta.' + EventsListName + '.country', 1), ('meta.date', 1)],
