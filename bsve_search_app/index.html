@@ -85,7 +85,7 @@
         background-color: rgba(0,255,255,0.5);
         box-shadow: 0px 0px 5px black;
     }
-    .grits-result.picked:hover {
+    .grits-result.picked:hover,.grits-result.picked.highlighted {
         color: firebrick;
         background-color: rgba(255,255,128,0.5);
         box-shadow: 0px 0px 5px black;
@@ -189,10 +189,10 @@
             geo_feature.data(data)
                 .style({
                     fillColor: function (d) {
-                        return d.picked ? (d.selected ? '#FFFF80' : 'aqua') :
-                               d.selected ? 'yellow' : 'steelblue';
+                        return d.picked ? (d.highlighted ? '#FFFF80' : 'aqua') :
+                               d.highlighted ? 'yellow' : 'steelblue';
                     },
-                    fillOpacity: function (d) { return d.selected ? 0.9 : 0.65; },
+                    fillOpacity: function (d) { return d.highlighted ? 0.9 : 0.65; },
                     strokeColor: 'black',
                     strokeWidth: 1,
                     radius: 7
@@ -209,12 +209,10 @@
                         // Only handle the top element clicked
                         return;
                     }
-                    var elemId = '#alert-' + evt.data.ids[0];
+                    var elemId = getDomId(evt.data);
                     $('.picked').removeClass('picked');
                     $(elemId).addClass('picked')[0].scrollIntoView();
-                    if (lastPicked) {
-                        lastPicked.picked = false;
-                    }
+                    $scope.unpick();
                     lastPicked = evt.data;
                     evt.data.picked = true;
                     reorderData();
@@ -223,22 +221,26 @@
                 })
                 .geoOff(geo.event.feature.mouseover)
                 .geoOn(geo.event.feature.mouseover, function (evt) {
-                    evt.data.selected = true;
+                    evt.data.highlighted = true;
                     this.modified();
                     triggerDraw();
-                    var elemId = '#alert-' + evt.data.ids[0];
+                    var elemId = getDomId(evt.data);
                     // $('.highlighted').removeClass('highlighted');
                     $(elemId).addClass('highlighted');
                 })
                 .geoOff(geo.event.feature.mouseout)
                 .geoOn(geo.event.feature.mouseout, function (evt) {
-                    delete evt.data.selected;
+                    delete evt.data.highlighted;
                     this.modified();
                     triggerDraw();
-                    var elemId = '#alert-' + evt.data.ids[0];
+                    var elemId = getDomId(evt.data);
                     $(elemId).removeClass('highlighted');
                 });
             geo_map.draw();
+        }
+
+        function getDomId(pointRecord) {
+            return '#alert-'+pointRecord.ids.join(',#alert-');
         }
 
         function reorderData() {
@@ -246,12 +248,12 @@
             var data = geo_feature.data();
             var newData = [];
             data.forEach(function (d) {
-                if (!d.selected) {
+                if (!d.picked) {
                     newData.push(d);
                 }
             });
             data.forEach(function (d) {
-                if (d.selected) {
+                if (d.picked) {
                     newData.push(d);
                 }
             });
@@ -260,34 +262,48 @@
 
         $scope.ready = false;
 
-        $scope.selectAlert = function (result) {
+        $scope.highlightAlert = function (result) {
             $('.highlighted').removeClass('highlighted');
             for (var n=0; n<result.points.length; n++) {
-                result.points[n].selected = true;
+                result.points[n].highlighted = true;
             }
-            reorderData();
             geo_feature.modified();
             triggerDraw();
         };
 
-        $scope.unselectAlert = function (result) {
+        $scope.unhighlightAlert = function (result) {
             $('.highlighted').removeClass('highlighted');
             for (var n=0; n<result.points.length; n++) {
-                delete result.points[n].selected;
+                delete result.points[n].highlighted;
             }
             geo_feature.modified();
             triggerDraw();
         };
+
+        $scope.unpick = function () {
+            if (lastPicked) {
+                if (lastPicked.points) {
+                    for (var n=0; n<lastPicked.points.length; n++) {
+                        delete lastPicked.points[n].picked;
+                    }
+                } else if (lastPicked.picked) {
+                    delete lastPicked.picked;
+                }
+            }
+            lastPicked = null;
+        }
 
         $scope.transitionTo = function (result) {
             var elemId = '#alert-' + result.properties.id;
             $('.picked').removeClass('picked');
             $(elemId).addClass('picked');
-            if (lastPicked) {
-                lastPicked.picked = false;
+            $scope.unpick();
+            for (var n=0; n<result.points.length; n++) {
+                result.points[n].picked = true;
             }
             lastPicked = result;
-            result.picked = true;
+            reorderData();
+            geo_feature.modified();
             var center = result.points[0].coordinates;
             var zoom = 5;
             if (result.points.length > 1) {
@@ -317,7 +333,6 @@
                     zoom += 1;
                     fill *= 2;
                 }
-                console.log('target zoom '+zoom+' '+fill); 
                 if (zoom > 6) {
                     zoom = 6;
                 }
@@ -524,8 +539,8 @@
             <div ng-if='results != null'>
                 <h3>Results ({{results.length}})</h3>
                 <div class='grits-result' ng-repeat='result in results'
-                        ng-mouseover='selectAlert(result)'
-                        ng-mouseleave='unselectAlert(result)'
+                        ng-mouseover='highlightAlert(result)'
+                        ng-mouseleave='unhighlightAlert(result)'
                         ng-click='transitionTo(result)'
                         id='alert-{{result.properties.id}}'
                         title='{{result.properties.id}}'
