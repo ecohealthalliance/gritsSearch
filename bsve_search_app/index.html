@@ -234,6 +234,24 @@
             geo_map.draw();
 
         }
+
+        function reorderData() {
+            // reorders the data in point feature class
+            var data = geo_feature.data();
+            var newData = [];
+            data.forEach(function (d) {
+                if (!d.selected) {
+                    newData.push(d);
+                }
+            });
+            data.forEach(function (d) {
+                if (d.selected) {
+                    newData.push(d);
+                }
+            });
+            geo_feature.data(newData);
+        }
+
         $scope.ready = false;
 
         $scope.selectAlert = function (result) {
@@ -241,8 +259,9 @@
             for (var n=0; n<result.points.length; n++) {
                 result.points[n].selected = true;
             }
+            reorderData();
             geo_feature.modified();
-            geo_map.draw();
+            triggerDraw();
         };
 
         $scope.unselectAlert = function (result) {
@@ -251,7 +270,7 @@
                 delete result.points[n].selected;
             }
             geo_feature.modified();
-            geo_map.draw();
+            triggerDraw();
         };
 
         $scope.transitionTo = function (result) {
