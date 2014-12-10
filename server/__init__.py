@@ -237,14 +237,18 @@ class GRITSDatabase(Resource):
         output = []
         for record in records:
             meta = record['meta']
+            points = [[meta.pop('longitude'), meta.pop('latitude')]]
+            if EventsListName in meta:
+                for event in meta[EventsListName]:
+                    if 'latitude' in event and 'longitude' in event:
+                        point = [event['longitude'], event['latitude']]
+                        if not point in points:
+                            points.append(point)
             obj = {
                 'type': 'Feature',
                 'geometry': {
-                    'type': 'Point',
-                    'coordinates': [
-                        meta.pop('longitude'),
-                        meta.pop('latitude')
-                    ]
+                    'type': 'Point' if len(points) == 1 else 'MultiPoint',
+                    'coordinates': points[0] if len(points) == 1 else points
                 },
                 'properties': {
                     'id': record.get('name'),

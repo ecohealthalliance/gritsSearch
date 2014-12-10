@@ -197,13 +197,13 @@
                 })
                 .position(function (d) {
                     return {
-                        x: d.geometry.coordinates[0],
-                        y: d.geometry.coordinates[1]
+                        x: d.coordinates[0],
+                        y: d.coordinates[1]
                     };
                 })
                 .geoOff(geo.event.feature.mouseclick)
                 .geoOn(geo.event.feature.mouseclick, function (evt) {
-                    var elemId = '#alert-' + evt.data.properties.id;
+                    var elemId = '#alert-' + evt.data.id;
                     $('.picked').removeClass('picked');
                     $(elemId).addClass('picked')[0].scrollIntoView();
                     if (lastPicked) {
@@ -219,7 +219,7 @@
                     evt.data.selected = true;
                     this.modified();
                     triggerDraw();
-                    var elemId = '#alert-' + evt.data.properties.id;
+                    var elemId = '#alert-' + evt.data.id;
                     $('.highlighted').removeClass('highlighted');
                     $(elemId).addClass('highlighted');
                 })
@@ -228,7 +228,7 @@
                     delete evt.data.selected;
                     this.modified();
                     triggerDraw();
-                    var elemId = '#alert-' + evt.data.properties.id;
+                    var elemId = '#alert-' + evt.data.id;
                     $(elemId).removeClass('highlighted');
                 });
             geo_map.draw();
@@ -238,14 +238,18 @@
 
         $scope.selectAlert = function (result) {
             $('.highlighted').removeClass('highlighted');
-            result.selected = true;
+            for (var n=0; n<result.points.length; n++) {
+                result.points[n].selected = true;
+            }
             geo_feature.modified();
             geo_map.draw();
         };
 
         $scope.unselectAlert = function (result) {
             $('.highlighted').removeClass('highlighted');
-            delete result.selected;
+            for (var n=0; n<result.points.length; n++) {
+                delete result.points[n].selected;
+            }
             geo_feature.modified();
             geo_map.draw();
         };
@@ -261,8 +265,8 @@
             result.picked = true;
             geo_map.transition({
                 center: {
-                    x: result.geometry.coordinates[0],
-                    y: result.geometry.coordinates[1]
+                    x: result.points[0].coordinates[0],
+                    y: result.points[0].coordinates[1]
                 },
                 zoom: 5,
                 interp: d3.interpolateZoom,
@@ -366,16 +370,39 @@
             $scope.resultsError = null;
             $scope.resultsPending = true;
             $http.get($scope.url + '/api/v1/resource/grits?' + $.param(params)
-                ).success(function (gjson) {
+                    ).success(function (gjson) {
                 var data = ((gjson || {}).features || []);
-                for (var i=0; i<data.length; i++) {
-                    data[i].properties.link = 'http://www.healthmap.org/ln.php?' +
-                        data[i].properties.id.substr(0, data[i].properties.id.length-4);
+                var points = [];
+                /* Split alerts with multiple events into multiple items */
+                for (var i=0; i < data.length; i++) {
+                    var item = data[i];
+                    item.properties.link = 'http://www.healthmap.org/ln.php?' +
+                        item.properties.id.substr(0, item.properties.id.length-4);
+                    item.points = [];
+                    if ($.isArray(item.geometry.coordinates[0])) {
+                        item.numPoints = item.geometry.coordinates.length;
+                        for (var n=0; n < item.numPoints; n++) {
+                            var point = {
+                                id: item.properties.id,
+                                coordinates: item.geometry.coordinates[n]
+                            };
+                            item.points.push(point);
+                            points.push(point);
+                        }
+                    } else {
+                        item.numPoints = 1;
+                        var point = {
+                            id: item.properties.id,
+                            coordinates: item.geometry.coordinates
+                        };
+                        item.points.push(point);
+                        points.push(point);
+                    }
                 }
                 $scope.resultsPending = null;
                 $scope.results = data;
                 $scope.resultsError = null;
-                showMap(data);
+                showMap(points);
             }).error(function (error) {
                 $scope.resultsPending = null;
                 $scope.results = null;
@@ -441,6 +468,7 @@
                         ng-mouseleave='unselectAlert(result)'
                         ng-click='transitionTo(result)'
                         id='alert-{{result.properties.id}}'
+                        title='{{result.properties.id}}'
                         >
                     <div class='result-date'>{{result.properties.date}}</div>
                     <div class='result-description'><a
