@@ -239,12 +239,18 @@ class GRITSDatabase(Resource):
         for record in records:
             meta = record['meta']
             points = [[meta.pop('longitude'), meta.pop('latitude')]]
+            places = [{'place_id': meta.get('place_id', None),
+                      'place_name': meta.get('place_name', None)}]
             if EventsListName in meta:
                 for event in meta[EventsListName]:
                     if 'latitude' in event and 'longitude' in event:
                         point = [event['longitude'], event['latitude']]
                         if not point in points:
                             points.append(point)
+                            places.append({
+                                'place_id': event.get('place_id', None),
+                                'place_name': event.get('place_name', None)
+                            })
             obj = {
                 'type': 'Feature',
                 'geometry': {
@@ -264,7 +270,8 @@ class GRITSDatabase(Resource):
                     'feed': meta.get('feed'),
                     'disease': meta.get('disease'),
                     'species': meta.get('species'),
-                    'symptoms': meta.get('symptoms')
+                    'symptoms': meta.get('symptoms'),
+                    'places': places
                 }
             }
             if 'private' in record:
