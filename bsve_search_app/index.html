@@ -211,7 +211,10 @@
                     }
                     var elemId = getDomId(evt.data);
                     $('.picked').removeClass('picked');
-                    $(elemId).addClass('picked')[0].scrollIntoView();
+                    var elems = $(elemId).addClass('picked');
+                    if (elems.length >= 1) {
+                        elems[0].scrollIntoView();
+                    }
                     $scope.unpick();
                     lastPicked = evt.data;
                     evt.data.picked = true;
@@ -225,12 +228,13 @@
                     this.modified();
                     triggerDraw();
                     var elemId = getDomId(evt.data);
-                    // $('.highlighted').removeClass('highlighted');
                     $(elemId).addClass('highlighted');
                 })
                 .geoOff(geo.event.feature.mouseout)
                 .geoOn(geo.event.feature.mouseout, function (evt) {
-                    delete evt.data.highlighted;
+                    if (evt.data.highlighted) {
+                        delete evt.data.highlighted;
+                    }
                     this.modified();
                     triggerDraw();
                     var elemId = getDomId(evt.data);
