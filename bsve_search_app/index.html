@@ -192,10 +192,18 @@
                         return d.picked ? (d.highlighted ? '#80FFFF' : 'aqua') :
                                d.highlighted ? 'yellow' : 'steelblue';
                     },
-                    fillOpacity: function (d) { return d.highlighted ? 0.9 : 0.65; },
+                    fillOpacity: function (d) {
+                        return d.highlighted ? 0.9 : 0.65;
+                    },
                     strokeColor: 'black',
                     strokeWidth: 1,
-                    radius: 7
+                    radius: function (d) {
+                        var count = d.ids.length;
+                        var rad = 7 - Math.log10(data.length);
+                        rad = rad < 4 ? 4 : rad;
+                        rad += Math.log10(count)*2;
+                        return rad > 15 ? 15 : rad;
+                    },
                 })
                 .position(function (d) {
                     return {
@@ -313,7 +321,7 @@
             if (update) {
                 geo_feature.modified();
                 triggerDraw();
-            }            
+            }
         }
 
         function getDomId(pointRecord) {
