@@ -458,35 +458,70 @@
             $scope.results = null;
             $scope.resultsError = null;
             $scope.resultsPending = true;
-            $http.get($scope.url + '/api/v1/resource/grits?' + $.param(params)
-                    ).success(function (gjson) {
-                var data = ((gjson || {}).features || []);
-                var points = [];
-                /* Split alerts with multiple events into multiple items */
-                for (var i=0; i < data.length; i++) {
-                    var item = data[i];
-                    item.properties.link = 'http://www.healthmap.org/ln.php?' +
-                        item.properties.id.substr(0, item.properties.id.length-4);
-                    item.points = [];
-                    if ($.isArray(item.geometry.coordinates[0])) {
-                        item.numPoints = item.geometry.coordinates.length;
-                        for (var n=0; n < item.numPoints; n++) {
-                            item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates[n]));
-                        }
-                    } else {
-                        item.numPoints = 1;
-                        item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates));
+            $scope.getData(params, params.limit, 0);
+        };
+
+        /* Fetch data in pages so as not to overtax the memory of the girder
+         * server. */
+        $scope.getData = function (params, limit, data, gjson) {
+            if (limit !== undefined) {
+                limit = parseInt(limit);
+            }
+            var pageSize = 5000;
+            var needMore = (!data);
+            if (gjson) {
+                var newdata = ((gjson || {}).features || []);
+                needMore = (newdata.length == pageSize);
+                if (data) {
+                    for (var i=0; i < newdata.length; i++) {
+                        data.push(newdata[i]);
+                    }
+                } else {
+                    data = newdata;
+                }
+                if (limit && data.length >= limit) {
+                    needMore = false;
+                }
+                params.offset = (params.offset || 0) + pageSize;
+            }
+            if (needMore) {
+                if (limit !== undefined && (!limit || limit >= pageSize)) {
+                    params.limit = pageSize;
+                    if (limit && data && limit - data.length < pageSize) {
+                        params.limit = limit - data.length;
                     }
                 }
-                $scope.resultsPending = null;
-                $scope.results = data;
-                $scope.resultsError = null;
-                showMap(points);
-            }).error(function (error) {
-                $scope.resultsPending = null;
-                $scope.results = null;
-                $scope.resultsError = 'Failed to get any results';
-            });
+                $http.get($scope.url + '/api/v1/resource/grits?' + $.param(params)
+                    ).success(function (gjson) {
+                        $scope.getData(params, limit, data, gjson);
+                }).error(function (error) {
+                    $scope.resultsPending = null;
+                    $scope.results = null;
+                    $scope.resultsError = 'Failed to get any results';
+                });
+                return;
+            }
+            var points = [];
+            /* Split alerts with multiple events into multiple items */
+            for (var i=0; i < data.length; i++) {
+                var item = data[i];
+                item.properties.link = 'http://www.healthmap.org/ln.php?' +
+                    item.properties.id.substr(0, item.properties.id.length-4);
+                item.points = [];
+                if ($.isArray(item.geometry.coordinates[0])) {
+                    item.numPoints = item.geometry.coordinates.length;
+                    for (var n=0; n < item.numPoints; n++) {
+                        item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates[n]));
+                    }
+                } else {
+                    item.numPoints = 1;
+                    item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates));
+                }
+            }
+            $scope.resultsPending = null;
+            $scope.results = data;
+            $scope.resultsError = null;
+            showMap(points);
         };
 
         API.init($http, $scope.onReady);

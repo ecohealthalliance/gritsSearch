@@ -19,6 +19,7 @@ from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
 from girder.models.model_base import AccessException
+from girder.utility.progress import setResponseTimeLimit
 
 EventsListName = 'events'
 
@@ -362,6 +363,9 @@ class GRITSDatabase(Resource):
     def gritsSearch(self, params):
 
         startTime = time.time()
+        # Some queries can be very slow; set the timeout for the whole REST
+        # call to 1 day.
+        setResponseTimeLimit(86400)
         folder = self.gritsFolder()
 
         self.checkAccess()
