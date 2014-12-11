@@ -87,7 +87,7 @@
     }
     .grits-result.picked:hover,.grits-result.picked.highlighted {
         color: firebrick;
-        background-color: rgba(255,255,128,0.5);
+        background-color: rgba(128,255,255,0.5);
         box-shadow: 0px 0px 5px black;
     }
     .grits-result .result-description {
@@ -150,7 +150,7 @@
         'Girder App', ['harbingerComponents', 'ngCookies']);
     app.controller('AppController', function($scope, $http, $cookies) {
         var geo_map = null, geo_layer, geo_feature, drawWait = false,
-            drawQueued = false, lastPicked = null;
+            drawQueued = false, lastPicked = null, highlightedList = [];
 
         function triggerDraw() {
             if (!drawWait) {
@@ -189,7 +189,7 @@
             geo_feature.data(data)
                 .style({
                     fillColor: function (d) {
-                        return d.picked ? (d.highlighted ? '#FFFF80' : 'aqua') :
+                        return d.picked ? (d.highlighted ? '#80FFFF' : 'aqua') :
                                d.highlighted ? 'yellow' : 'steelblue';
                     },
                     fillOpacity: function (d) { return d.highlighted ? 0.9 : 0.65; },
@@ -224,23 +224,96 @@
                 })
                 .geoOff(geo.event.feature.mouseover)
                 .geoOn(geo.event.feature.mouseover, function (evt) {
+                    highlightPoint('add', evt.data);
+                    //DWM::
+                    /*
                     evt.data.highlighted = true;
                     this.modified();
                     triggerDraw();
+                     */
                     var elemId = getDomId(evt.data);
                     $(elemId).addClass('highlighted');
                 })
                 .geoOff(geo.event.feature.mouseout)
                 .geoOn(geo.event.feature.mouseout, function (evt) {
+                    highlightPoint('clear', evt.data);
+                    //DWM::
+                    /*
                     if (evt.data.highlighted) {
                         delete evt.data.highlighted;
                     }
                     this.modified();
                     triggerDraw();
+                     */
                     var elemId = getDomId(evt.data);
                     $(elemId).removeClass('highlighted');
                 });
             geo_map.draw();
+        }
+
+        function highlightPoint(action, point) {
+            /* Add, remove, or remove all points from the points that might be
+             * highlighted.  Make sure only the topmost point in the candidate
+             * list is actually highlighted.
+             *
+             * :param action: 'add' to add a point to the list, 'clear' to
+             *     remove a point from the list, or 'clearall' to remove all
+             *     points from the list.
+             * :param point: the point to add or clear.
+             */
+            var update = false, recheck = false;
+            switch (action) {
+                case 'add':
+                    var idx = highlightedList.indexOf(point);
+                    if (idx >= 0) {
+                        return;
+                    }
+                    highlightedList.push(point);
+                    recheck = true;
+                    break;
+                case 'clear':
+                    var idx = highlightedList.indexOf(point);
+                    if (idx >= 0) {
+                        if (point.highlighted) {
+                           delete point.highlighted;
+                           update = true;
+                        }
+                        highlightedList.splice(idx, 1);
+                        recheck = true;
+                    }
+                    break;
+                case 'clearall':
+                    for (var i = 0; i < highlightedList.length; i += 1) {
+                        if (highlightedList[i].highlighted) {
+                            delete highlightedList[i].highlighted;
+                            update = true;
+                        }
+                    }
+                    highlightedList = [];
+                    break;
+            }
+            if (recheck) {
+                var topmost = -1, toppos = -1;
+                for (var i=0; i < highlightedList.length; i += 1) {
+                    if (highlightedList[i].position > toppos) {
+                        toppos = highlightedList[i].position;
+                        topmost = i;
+                    }
+                }
+                for (var i=0; i < highlightedList.length; i += 1) {
+                    if (i == topmost && !highlightedList[i].highlighted) {
+                        highlightedList[i].highlighted = true;
+                        update = true;
+                    } else if (i != topmost && highlightedList[i].highlighted) {
+                        delete highlightedList[i].highlighted;
+                        update = true;
+                    }
+                }
+            }
+            if (update) {
+                geo_feature.modified();
+                triggerDraw();
+            }            
         }
 
         function getDomId(pointRecord) {
@@ -253,11 +326,13 @@
             var newData = [];
             data.forEach(function (d) {
                 if (!d.picked) {
+                    d.position = newData.length;
                     newData.push(d);
                 }
             });
             data.forEach(function (d) {
                 if (d.picked) {
+                    d.position = newData.length;
                     newData.push(d);
                 }
             });
@@ -267,6 +342,8 @@
         $scope.ready = false;
 
         $scope.highlightAlert = function (result) {
+            highlightPoint('clearall');
+            //DWM:: clear
             $('.highlighted').removeClass('highlighted');
             for (var n=0; n<result.points.length; n++) {
                 result.points[n].highlighted = true;
@@ -276,6 +353,8 @@
         };
 
         $scope.unhighlightAlert = function (result) {
+            highlightPoint('clearall');
+            //DWM:: clear
             $('.highlighted').removeClass('highlighted');
             for (var n=0; n<result.points.length; n++) {
                 delete result.points[n].highlighted;
@@ -441,7 +520,11 @@
                     return points[i];
                 }
             }
-            var point = {ids: [id], coordinates: coordinates};
+            var point = {
+                ids: [id],
+                coordinates: coordinates,
+                position: points.length
+            };
             points.push(point);
             return point;
         };
@@ -521,6 +604,8 @@
             $scope.resultsPending = null;
             $scope.results = data;
             $scope.resultsError = null;
+            lastPicked = null;
+            highlightedList = [];
             showMap(points);
         };
 
