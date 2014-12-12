@@ -165,12 +165,13 @@ app.controller('AppController', function($scope, $http, $cookies) {
 
     function highlightPoint(action, point) {
         /* Add, remove, or remove all points from the points that might be
-         * highlighted.  Make sure only the topmost point in the candidate
-         * list is actually highlighted.
+         * highlighted.  Make sure only the topmost point in the candidate list
+         * is actually highlighted.
          *
-         * :param action: 'add' to add a point to the list, 'clear' to
-         *     remove a point from the list, or 'clearall' to remove all
-         *     points from the list.
+         * :param action: 'add' to add a point to the list, 'clear' to remove a
+         *     point from the list, 'clearall' to remove all points from the
+         *     list, or 'clearmost' to remove all points from the list but not
+         *     alter the current tooltip.
          * :param point: the point to add or clear.
          */
         var update = false, recheck = false, tooltip;
@@ -194,7 +195,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
                     recheck = true;
                 }
                 break;
-            case 'clearall':
+            case 'clearall': case 'clearmost':
                 for (var i = 0; i < highlightedList.length; i += 1) {
                     if (highlightedList[i].highlighted) {
                         delete highlightedList[i].highlighted;
@@ -227,7 +228,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
             geo_feature.modified();
             triggerDraw();
             if (!tooltip) {
-                if ($scope.mapTooltip) {
+                if ($scope.mapTooltip && action != 'clearmost') {
                     $scope.mapTooltip = null;
                     $scope.$apply();
                 }
@@ -259,8 +260,8 @@ app.controller('AppController', function($scope, $http, $cookies) {
                                     id: tooltip.ids[i]});
                 }
                 if (tooltip.ids.length > maxlist) {
-                    tt.alerts.push({description: 'and ' +
-                        (tooltip.ids.length - maxlist) + ' more ...'});
+                    tt.more = 'and ' + (tooltip.ids.length - maxlist) +
+                        ' more ...';
                 }
                 $scope.mapTooltip = tt;
                 $scope.$apply();
@@ -269,6 +270,9 @@ app.controller('AppController', function($scope, $http, $cookies) {
     }
 
     function getDomId(pointRecord) {
+        if (!pointRecord || !pointRecord.ids) {
+            return '';
+        }
         return '#alert-'+pointRecord.ids.join(',#alert-');
     }
 
@@ -289,6 +293,8 @@ app.controller('AppController', function($scope, $http, $cookies) {
             }
         });
         geo_feature.data(newData);
+        /* We can lose track of highlighting during a reorder. */
+        highlightPoint('clearmost');
     }
 
     $scope.ready = false;

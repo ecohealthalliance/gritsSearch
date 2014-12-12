@@ -198,6 +198,9 @@
     .grits-map-tooltip-description {
         display: inline;
     }
+    #grits-map-tooltip-more {
+        text-align: right;
+    }
     </style>
 
     <!-- Load jQuery -->
@@ -315,6 +318,7 @@
                 <div class='grits-map-tooltip-date'>{{alert.date}}</div>
                 <div class='grits-map-tooltip-description'>{{alert.description}}</div>
             </div>
+            <div id='grits-map-tooltip-more'>{{mapTooltip.more}}</div>
         </div>
     </div>
 </div>
