@@ -99,10 +99,10 @@
     .grits-result .result-description {
         display: inline;
     }
-    .grits-result.hide-unselected {
+    .hide-unselected .grits-result {
         display: none;
     }
-    .grits-result.hide-unselected.picked {
+    .hide-unselected .grits-result.picked {
         display: block;
     }
 
@@ -132,6 +132,7 @@
     }
     .grits-row-2 {
         height: 55%;
+        position: relative;
     }
 
     #grits-map {
@@ -149,10 +150,10 @@
     }
     #grits-current-selection-text {
         white-space: nowrap;
+        text-overflow: ellipsis;
         overflow: hidden;
         width: 85%;
         display: inline-block;
-        text-overflow: ellipsis;
     }
     #grits-current-selection-count {
         float: right;
@@ -164,6 +165,38 @@
         width: 35px;
         display: inline-block;
         text-align: center;
+    }
+    #grits-map-tooltip {
+        pointer-events: none;
+        position: absolute;
+        border-radius: 5px;
+        color: firebrick;
+        background-color: rgba(255,255,0,0.5);
+        box-shadow: 0px 0px 5px black;
+        z-index: 1;
+        max-width: 125px;
+        max-height: 84px;
+        font-size: 10px;
+        line-height: 10px;
+        padding: 2px;
+        overflow: hidden;
+    }
+    #grits-map-tooltip-title {
+        font-weight: bold;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+    }
+    .grits-map-tooltip-item {
+        max-height: 20px;
+        overflow: hidden;
+    }
+    .grits-map-tooltip-date {
+        font-weight: bold;
+        display: inline;
+    }
+    .grits-map-tooltip-description {
+        display: inline;
     }
     </style>
 
@@ -210,6 +243,7 @@
         </div>
     </form>
 </div>
+
 <div class='grits-container' ng-show='userToken'>
     <div class='grits-row-1' ng-if='userToken'>
         <div class='grits-left-side'>
@@ -249,18 +283,19 @@
 </div>
 <div ng-if='results != null'>
     <h3>Results ({{results.length + (selectedLocation && selectedFilter ? ' - ' + selectedCount + ' selected' : '')}})</h3>
-    <div class='grits-result' ng-repeat='result in results'
-            ng-mouseover='highlightAlert(result)'
-            ng-mouseleave='unhighlightAlert(result)'
-            ng-click='transitionTo(result)'
-            id='alert-{{result.properties.id}}'
-            title='{{result.properties.id}}'
-            ng-class='{"hide-unselected": selectedLocation && selectedFilter}'
-            >
-        <div class='result-date'>{{result.properties.date}}</div>
-        <div class='result-description'><a
-            href='{{result.properties.link}}'
-            target='grits-link'>{{result.properties.summary}}</a></div>
+    <div ng-class='{"hide-unselected": selectedLocation && selectedFilter}'>
+        <div class='grits-result' ng-repeat='result in results'
+                ng-mouseover='highlightAlert(result)'
+                ng-mouseleave='unhighlightAlert(result)'
+                ng-click='transitionTo(result)'
+                id='alert-{{result.properties.id}}'
+                title='{{result.properties.id}}'
+                >
+            <div class='result-date'>{{result.properties.date}}</div>
+            <div class='result-description'><a
+                href='{{result.properties.link}}'
+                target='grits-link'>{{result.properties.summary}}</a></div>
+        </div>
     </div>
 </div>
 <div ng-if='resultsError'>
@@ -269,14 +304,22 @@
 </div>
 
         </div>
-            </div>
+    </div>
     <div class='grits-row-2'>
         <div id='grits-map'></div>
-    </div>
-
+        <div id='grits-map-tooltip' ng-if='mapTooltip.title'
+                style='{{mapTooltip.style}}'>
+            <div id='grits-map-tooltip-title'>{{mapTooltip.title}}</div>
+            <div class='grits-map-tooltip-item' alert='{{alert.id}}'
+                    ng-repeat='alert in mapTooltip.alerts'>
+                <div class='grits-map-tooltip-date'>{{alert.date}}</div>
+                <div class='grits-map-tooltip-description'>{{alert.description}}</div>
+            </div>
         </div>
     </div>
 </div>
 
+        </div>
+    </div>
 </body>
 </html>

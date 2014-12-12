@@ -146,7 +146,11 @@ app.controller('AppController', function($scope, $http, $cookies) {
                 height = pos.top + h - position.top;
             }
         });
-        var scrollElem = elem.parent().parent();
+        var scrollElem = elem.parents().filter(function() {
+            var parent = $( this );
+            return (/(auto|scroll)/).test(parent.css('overflow') +
+                                          parent.css('overflow-y'));
+        }).eq(0);;
         var curScroll = scrollElem.scrollTop();
         var view = scrollElem.height();
         var offset = (view - height) / 2;
@@ -169,7 +173,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
          *     points from the list.
          * :param point: the point to add or clear.
          */
-        var update = false, recheck = false;
+        var update = false, recheck = false, tooltip;
         switch (action) {
             case 'add':
                 var idx = highlightedList.indexOf(point);
@@ -211,6 +215,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
             for (var i=0; i < highlightedList.length; i += 1) {
                 if (i == topmost && !highlightedList[i].highlighted) {
                     highlightedList[i].highlighted = true;
+                    tooltip = highlightedList[i];
                     update = true;
                 } else if (i != topmost && highlightedList[i].highlighted) {
                     delete highlightedList[i].highlighted;
@@ -221,6 +226,45 @@ app.controller('AppController', function($scope, $http, $cookies) {
         if (update) {
             geo_feature.modified();
             triggerDraw();
+            if (!tooltip) {
+                if ($scope.mapTooltip) {
+                    $scope.mapTooltip = null;
+                    $scope.$apply();
+                }
+            } else {
+                var tt = {style: '', alerts: []};
+                var pos = geo_map.gcsToDisplay({
+                    x: tooltip.coordinates[0], y: tooltip.coordinates[1]});
+                var mapW = $('#grits-map').width();
+                var mapH = $('#grits-map').height();
+                if (pos.x > mapW/2) {
+                    tt.style += 'right: '+(mapW-pos.x+10)+'px';
+                } else {
+                    tt.style += 'left: '+(pos.x+10)+'px';
+                }
+                if (pos.y > mapH/2) {
+                    tt.style += '; bottom: '+(mapH-pos.y+10)+'px';
+                } else {
+                    tt.style += '; top: '+(pos.y+10)+'px';
+                }
+                tt.title = tooltip.place.place_name || (
+                    tooltip.coordinates[0] + ', '  + tooltip.coordinates[1]);
+                var maxlist = 3;
+                for (var i = 0; i < tooltip.ids.length && i < maxlist; i +=1) {
+                    var elem = $('#alert-' + tooltip.ids[i]);
+                    var date = $('.result-date', elem).text();
+                    var desc = $('.result-description', elem).text();
+                    tt.alerts.push({date: date.substr(0, 10),
+                                    description: desc,
+                                    id: tooltip.ids[i]});
+                }
+                if (tooltip.ids.length > maxlist) {
+                    tt.alerts.push({description: 'and ' +
+                        (tooltip.ids.length - maxlist) + ' more ...'});
+                }
+                $scope.mapTooltip = tt;
+                $scope.$apply();
+            }
         }
     }
 
