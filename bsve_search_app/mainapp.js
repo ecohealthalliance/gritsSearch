@@ -93,6 +93,15 @@ app.controller('AppController', function($scope, $http, $cookies) {
                 $scope.unpick();
                 lastPicked = evt.data;
                 evt.data.picked = true;
+                $scope.selectedDescription = evt.data.place.place_name;
+                if (!evt.data.place.place_name) {
+                    $scope.selectedDescription = evt.data.coordinates[0] +
+                        ', '  + evt.data.coordinates[1];
+                }
+                $scope.selectedTitle = evt.data.place.place_name;
+                $scope.selectedCount = evt.data.ids.length;
+                $scope.selectedLocation = true;
+                $scope.$apply();
                 reorderData();
                 this.modified();
                 triggerDraw();
@@ -243,6 +252,11 @@ app.controller('AppController', function($scope, $http, $cookies) {
         for (var n=0; n<result.points.length; n++) {
             result.points[n].picked = true;
         }
+        $scope.selectedDescription = 'Alert '+result.properties.id;
+        $scope.selectedTitle = result.properties.date + ': ' +
+                               result.properties.summary;
+        $scope.selectedCount = result.points.length;
+        $scope.selectedLocation = false;
         lastPicked = result;
         reorderData();
         geo_feature.modified();
@@ -289,6 +303,11 @@ app.controller('AppController', function($scope, $http, $cookies) {
             duration: 1000
         });
     };
+
+    $scope.changeFilter = function () {
+        /* I don't know why angular doesn't change this on its own */
+        $scope.selectedFilter = !$scope.selectedFilter;
+    }
 
     $scope.url = 'http://localhost:8081';
     if ($cookies.girderUrl) {
@@ -338,6 +357,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
         // API has a connection with BSVE workbench
         $scope.ready = true;
     };
+
     $scope.login = function() {
         var url, username, password;
         for (var i = 0; i < $scope.loginParams.length; i += 1) {
@@ -364,6 +384,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
             });
         }
     };
+
     $scope.logout = function() {
         $scope.results = null;
         $scope.resultsError = null;
@@ -371,10 +392,13 @@ app.controller('AppController', function($scope, $http, $cookies) {
         $cookies.girderToken = '';
         $scope.loginError = null;
         $scope.resultsPending = null;
+        $scope.selectedDescription = null;
     };
-    $scope.collectPoint = function (points, id, coordinates) {
+
+    $scope.collectPoint = function (points, id, coordinates, place) {
         for (var i=0; i<points.length; i++) {
-            if (points[i].coordinates[0] == coordinates[0] && points[i].coordinates[1] == coordinates[1]) {
+            if (points[i].coordinates[0] == coordinates[0] &&
+                    points[i].coordinates[1] == coordinates[1]) {
                 points[i]['ids'].push(id);
                 return points[i];
             }
@@ -382,11 +406,13 @@ app.controller('AppController', function($scope, $http, $cookies) {
         var point = {
             ids: [id],
             coordinates: coordinates,
-            position: points.length
+            position: points.length,
+            place: place
         };
         points.push(point);
         return point;
     };
+
     $scope.search = function() {
         var params = {}, url, username, password;
         for (var i = 0; i < $scope.params.length; i += 1) {
@@ -453,16 +479,22 @@ app.controller('AppController', function($scope, $http, $cookies) {
             if ($.isArray(item.geometry.coordinates[0])) {
                 item.numPoints = item.geometry.coordinates.length;
                 for (var n=0; n < item.numPoints; n++) {
-                    item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates[n]));
+                    item.points.push($scope.collectPoint(
+                        points, item.properties.id,
+                        item.geometry.coordinates[n],
+                        item.properties.places[n]));
                 }
             } else {
                 item.numPoints = 1;
-                item.points.push($scope.collectPoint(points, item.properties.id, item.geometry.coordinates));
+                item.points.push($scope.collectPoint(
+                    points, item.properties.id, item.geometry.coordinates,
+                    item.properties.places[0]));
             }
         }
         $scope.resultsPending = null;
         $scope.results = data;
         $scope.resultsError = null;
+        $scope.selectedDescription = null;
         lastPicked = null;
         highlightedList = [];
         showMap(points);

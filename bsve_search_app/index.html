@@ -18,6 +18,12 @@
         width: 640px;
         height: 800px;
     }
+    .content form {
+        margin: 0;
+    }
+    .grits-title {
+        margin-top: 0;
+    }
     .grits-login,.grits-row-1 {
         /* The BSVE example had this padding for some button-like items.
         padding-left: 40px;
@@ -61,7 +67,7 @@
         width: 50%;
         margin-bottom: 25px;
     }
-    .grits-result {
+    .grits-result,#grits-current-selection {
         margin-bottom: 0px;
         color: steelblue;
         border-radius: 5px;
@@ -80,7 +86,7 @@
         background-color: rgba(255,255,0,0.5);
         box-shadow: 0px 0px 5px black;
     }
-    .grits-result.picked {
+    .grits-result.picked,#grits-current-selection {
         color: firebrick;
         background-color: rgba(0,255,255,0.5);
         box-shadow: 0px 0px 5px black;
@@ -93,6 +99,12 @@
     .grits-result .result-description {
         display: inline;
     }
+    .grits-result.hide-unselected {
+        display: none;
+    }
+    .grits-result.hide-unselected.picked {
+        display: block;
+    }
 
     .grits-results-container {
         width: 50%;
@@ -103,7 +115,7 @@
         padding-left: 5px;
         padding-right: 5px;
     }
-    .grits-search-form {
+    .grits-left-side {
         width: 50%;
         float: left;
         height: 100%;
@@ -116,15 +128,42 @@
         height: inherit;
     }
     .grits-row-1 {
-        height: 43%;
+        height: 45%;
     }
     .grits-row-2 {
-        height: 57%;
+        height: 55%;
     }
 
     #grits-map {
         height: 100%;
         width: 100%;
+    }
+    #grits-current-selection {
+        margin-top: 9px;
+        color: black;
+        line-height: 18px;
+        padding: 1px 3px 1px 3px;
+        vertical-align: middle;
+        display: inline-block;
+        width: 280px;
+    }
+    #grits-current-selection-text {
+        white-space: nowrap;
+        overflow: hidden;
+        width: 85%;
+        display: inline-block;
+        text-overflow: ellipsis;
+    }
+    #grits-current-selection-count {
+        float: right;
+        font-weight: bold;
+        padding-right: 7px;
+        display: inline-block;
+    }
+    #grits-selection-filter {
+        width: 35px;
+        display: inline-block;
+        text-align: center;
     }
     </style>
 
@@ -155,7 +194,7 @@
         <div class="content">
 
 <div class='grits-login' ng-if='!userToken'>
-    <h2>Girder GRITS Search</h2>
+    <h2 class='grits-title'>Girder GRITS Search</h2>
     <form novalidate>
         <div class='control' ng-repeat='param in loginParams'>
             <label for='{{"girder-"+param.key}}'>{{param.label}}</label>
@@ -173,45 +212,62 @@
 </div>
 <div class='grits-container' ng-show='userToken'>
     <div class='grits-row-1' ng-if='userToken'>
-        <div class='grits-search-form'>
-        <h2>Girder GRITS Search</h2>
-        <form novalidate>
-            <div class='control' ng-repeat='param in params'>
-                <label for='{{"girder-"+param.key}}'>{{param.label}}</label>
-                <input type='{{param.style}}' ng-model='param.value'
-                 placeholder='{{param.placeholder}}' title='{{param.title}}'/>
-            </div>
-            <div class='buttons'>
-                <div class='buttons-right'>
-                    <button ng-click="search()">Search</button>
-                </div>
-                <button ng-click="logout()">Log Out</button>
-            </div>
-        </form>
-        </div>
+        <div class='grits-left-side'>
 
+<h2 class='grits-title'>Girder GRITS Search</h2>
+<form novalidate>
+    <div class='control' ng-repeat='param in params'>
+        <label for='{{"girder-"+param.key}}'>{{param.label}}</label>
+        <input type='{{param.style}}' ng-model='param.value'
+            placeholder='{{param.placeholder}}' title='{{param.title}}'/>
+    </div>
+    <div class='buttons'>
+        <div class='buttons-right'>
+            <button ng-click="search()">Search</button>
+        </div>
+        <button ng-click="logout()">Log Out</button>
+    </div>
+</form>
+<div ng-if='selectedDescription'>
+    <div id='grits-current-selection'>
+        <div id='grits-current-selection-text'
+            title='{{selectedTitle}}'>{{selectedDescription}}</div>
+        <div id='grits-current-selection-count'>{{selectedCount}}</div>
+    </div>
+    <div id='grits-selection-filter' ng-if='selectedLocation'
+            title='Hide all but selected location in results list'>
+        <input type='checkbox' ng-model='selectedFilter'
+            ng-change='changeFilter()'/>
+    </div>
+</div>
+
+        </div>
         <div class='grits-results-container'>
-            <div ng-if='resultsPending'>
-                <h3>Searching...</h3>
-            </div>
-            <div ng-if='results != null'>
-                <h3>Results ({{results.length}})</h3>
-                <div class='grits-result' ng-repeat='result in results'
-                        ng-mouseover='highlightAlert(result)'
-                        ng-mouseleave='unhighlightAlert(result)'
-                        ng-click='transitionTo(result)'
-                        id='alert-{{result.properties.id}}'
-                        title='{{result.properties.id}}'
-                        >
-                    <div class='result-date'>{{result.properties.date}}</div>
-                    <div class='result-description'><a
-                            href='{{result.properties.link}}' target='grits-link'>{{result.properties.summary}}</a></div>
-                </div>
-            </div>
-            <div ng-if='resultsError'>
-                <h3>Error</h3>
-                <div class='results-error'>{{resultsError}}</div>
-            </div>
+
+<div ng-if='resultsPending'>
+    <h3>Searching...</h3>
+</div>
+<div ng-if='results != null'>
+    <h3>Results ({{results.length + (selectedLocation && selectedFilter ? ' - ' + selectedCount + ' selected' : '')}})</h3>
+    <div class='grits-result' ng-repeat='result in results'
+            ng-mouseover='highlightAlert(result)'
+            ng-mouseleave='unhighlightAlert(result)'
+            ng-click='transitionTo(result)'
+            id='alert-{{result.properties.id}}'
+            title='{{result.properties.id}}'
+            ng-class='{"hide-unselected": selectedLocation && selectedFilter}'
+            >
+        <div class='result-date'>{{result.properties.date}}</div>
+        <div class='result-description'><a
+            href='{{result.properties.link}}'
+            target='grits-link'>{{result.properties.summary}}</a></div>
+    </div>
+</div>
+<div ng-if='resultsError'>
+    <h3>Error</h3>
+    <div class='results-error'>{{resultsError}}</div>
+</div>
+
         </div>
             </div>
     <div class='grits-row-2'>
