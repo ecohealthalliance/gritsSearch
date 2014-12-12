@@ -87,9 +87,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
                 var elemId = getDomId(evt.data);
                 $('.picked').removeClass('picked');
                 var elems = $(elemId).addClass('picked');
-                if (elems.length >= 1) {
-                    elems[0].scrollIntoView();
-                }
+                scrollToCenter(elems, 10);
                 $scope.unpick();
                 lastPicked = evt.data;
                 evt.data.picked = true;
@@ -119,6 +117,46 @@ app.controller('AppController', function($scope, $http, $cookies) {
                 $(elemId).removeClass('highlighted');
             });
         geo_map.draw();
+    }
+
+    function scrollToCenter(elem, minOffset) {
+        /* Vertically scroll the jquery element(s) so that elements are
+         * centered within the visible area of the parent, if possible.  If not
+         * possible, scroll so the topmost element is near the top of the
+         * visible area.
+         *
+         * :param elem: a jquery element set.
+         * :param minOffset: if present, try to always leave this many pixels
+         *     between the top of the visible area and the elements.
+         */
+        if (!elem.length) {
+            return;
+        }
+        var position = elem.position();
+        var height = elem.outerHeight(true);
+        elem.each(function (idx, el) {
+            el = $(el);
+            var pos = el.position();
+            if (pos.top < position.top) {
+                height += position.top - pos.top;
+                position.top = pos.top;
+            }
+            h = el.outerHeight(true);
+            if (pos.top + h > position.top + height) {
+                height = pos.top + h - position.top;
+            }
+        });
+        var scrollElem = elem.parent().parent();
+        var curScroll = scrollElem.scrollTop();
+        var view = scrollElem.height();
+        var offset = (view - height) / 2;
+        if (minOffset && offset < minOffset) {
+            offset = minOffset;
+        }
+        if (offset > 0) {
+            position.top -= offset;
+        }
+        scrollElem.scrollTop(curScroll + position.top);
     }
 
     function highlightPoint(action, point) {
@@ -390,9 +428,10 @@ app.controller('AppController', function($scope, $http, $cookies) {
         $scope.resultsError = null;
         $scope.userToken = null;
         $cookies.girderToken = '';
-        $scope.loginError = null;
         $scope.resultsPending = null;
+        $scope.loginError = null;
         $scope.selectedDescription = null;
+        $scope.selectedLocation = null;
     };
 
     $scope.collectPoint = function (points, id, coordinates, place) {
@@ -417,7 +456,8 @@ app.controller('AppController', function($scope, $http, $cookies) {
         var params = {}, url, username, password;
         for (var i = 0; i < $scope.params.length; i += 1) {
             var param = $scope.params[i];
-            if (param.value !== null && param.value !== undefined && param.value.length) {
+            if (param.value !== null && param.value !== undefined &&
+                    param.value.length) {
                 params[param.key] = param.value;
             }
         }
@@ -491,10 +531,11 @@ app.controller('AppController', function($scope, $http, $cookies) {
                     item.properties.places[0]));
             }
         }
-        $scope.resultsPending = null;
         $scope.results = data;
+        $scope.resultsPending = null;
         $scope.resultsError = null;
         $scope.selectedDescription = null;
+        $scope.selectedLocation = null;
         lastPicked = null;
         highlightedList = [];
         showMap(points);
