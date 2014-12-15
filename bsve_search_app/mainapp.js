@@ -56,11 +56,11 @@ app.controller('AppController', function($scope, $http, $cookies) {
         geo_feature.data(data)
             .style({
                 fillColor: function (d) {
-                    return d.picked ? (d.highlighted ? '#80FFFF' : 'aqua') :
-                           d.highlighted ? 'yellow' : 'steelblue';
+                    return d.picked ? (d.highlighted ? '#fdb37b' : '#fc8d59') :
+                           d.highlighted ? '#ffffbf' : '#91bfff';
                 },
                 fillOpacity: function (d) {
-                    return d.highlighted ? 0.9 : 0.65;
+                    return d.highlighted || d.picked ? 0.9 : 0.65;
                 },
                 strokeColor: 'black',
                 strokeWidth: 1,
@@ -97,7 +97,8 @@ app.controller('AppController', function($scope, $http, $cookies) {
                         ', '  + evt.data.coordinates[1];
                 }
                 $scope.selectedTitle = evt.data.place.place_name;
-                $scope.selectedCount = evt.data.ids.length;
+                $scope.selectedCount = evt.data.ids.length + (
+                    evt.data.ids.length != 1 ? ' alerts' : ' alert');
                 $scope.selectedLocation = true;
                 $scope.$apply();
                 reorderData();
@@ -343,7 +344,8 @@ app.controller('AppController', function($scope, $http, $cookies) {
         $scope.selectedDescription = 'Alert '+result.properties.id;
         $scope.selectedTitle = result.properties.date + ': ' +
                                result.properties.summary;
-        $scope.selectedCount = result.points.length;
+        $scope.selectedCount = result.points.length + (
+            result.points.length != 1 ? ' places' : ' place');
         $scope.selectedLocation = false;
         lastPicked = result;
         reorderData();
@@ -397,6 +399,12 @@ app.controller('AppController', function($scope, $http, $cookies) {
         $scope.selectedFilter = !$scope.selectedFilter;
     }
 
+    $scope.scrollToCurrent = function () {
+        /* Scroll to the picked alerts */
+        var elems = $('.picked');
+        scrollToCenter(elems, 10);
+    }
+
     $scope.url = 'http://localhost:8081';
     if ($cookies.girderUrl) {
         $scope.url = $cookies.girderUrl;
@@ -425,7 +433,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
         },{ key: 'species', label: 'Species'
         },{ key: 'description', label: 'Description'
         },{ key: 'diagnosis', label: 'Diagnosis'
-        },{ key: 'id', label: 'Incident ID'
+        },{ key: 'id', label: 'Alert ID'
         },{
             key: 'limit',
             label: 'Limit',

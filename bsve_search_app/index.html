@@ -12,6 +12,8 @@
     <!-- Load in BSVE base app styles -->
     <link rel="stylesheet" type="text/css" href="http://harbinger3-dev.elasticbeanstalk.com/workbench/styles/harbingerApp.css"/>
 
+    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/font-awesome/4.0.0/css/font-awesome.css" />
+
     <style>
     .content {
         overflow: hidden;
@@ -69,7 +71,7 @@
     }
     .grits-result,#grits-current-selection {
         margin-bottom: 0px;
-        color: steelblue;
+        color: black;
         border-radius: 5px;
         padding: 3px;
         cursor: pointer;
@@ -81,19 +83,22 @@
         margin-right: 5px;
         transition: color 100ms;
     }
+    .grits-result .result-link {
+        margin-right: 5px;
+    }
     .grits-result:hover,.grits-result.highlighted {
-        color: firebrick;
-        background-color: rgba(255,255,0,0.5);
+        color: black;
+        background-color: rgba(255,255,191,0.5);
         box-shadow: 0px 0px 5px black;
     }
     .grits-result.picked,#grits-current-selection {
-        color: firebrick;
-        background-color: rgba(0,255,255,0.5);
+        color: black;
+        background-color: rgba(252,141,89,0.5);
         box-shadow: 0px 0px 5px black;
     }
     .grits-result.picked:hover,.grits-result.picked.highlighted {
-        color: firebrick;
-        background-color: rgba(128,255,255,0.5);
+        color: black;
+        background-color: rgba(253,179,123,0.5);
         box-shadow: 0px 0px 5px black;
     }
     .grits-result .result-description {
@@ -152,14 +157,17 @@
         white-space: nowrap;
         text-overflow: ellipsis;
         overflow: hidden;
-        width: 85%;
+        width: 78%;
         display: inline-block;
     }
     #grits-current-selection-count {
         float: right;
         font-weight: bold;
-        padding-right: 7px;
+        padding-right: 2px;
         display: inline-block;
+        max-width: 22%;
+        overflow: hidden;
+        white-space: nowrap;
     }
     #grits-selection-filter {
         width: 35px;
@@ -170,8 +178,8 @@
         pointer-events: none;
         position: absolute;
         border-radius: 5px;
-        color: firebrick;
-        background-color: rgba(255,255,0,0.5);
+        color: black;
+        background-color: rgba(255,255,191,0.75);
         box-shadow: 0px 0px 5px black;
         z-index: 1;
         max-width: 125px;
@@ -266,7 +274,7 @@
     </div>
 </form>
 <div ng-if='selectedDescription'>
-    <div id='grits-current-selection'>
+    <div id='grits-current-selection' ng-click='scrollToCurrent()'>
         <div id='grits-current-selection-text'
             title='{{selectedTitle}}'>{{selectedDescription}}</div>
         <div id='grits-current-selection-count'>{{selectedCount}}</div>
@@ -295,9 +303,10 @@
                 title='{{result.properties.id}}'
                 >
             <div class='result-date'>{{result.properties.date}}</div>
-            <div class='result-description'><a
-                href='{{result.properties.link}}'
-                target='grits-link'>{{result.properties.summary}}</a></div>
+            <div class='result-description'>{{result.properties.summary}}</div>
+            <a class='result-link' href='{{result.properties.link}}'
+                target='grits-link'><i class="fa fa-link">
+                </i></a>
         </div>
     </div>
 </div>
