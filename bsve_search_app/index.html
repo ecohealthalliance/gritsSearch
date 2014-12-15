@@ -114,11 +114,15 @@
     .grits-results-container {
         width: 50%;
         height: 100%;
+        overflow: hidden;
+        float: right;
+    }
+    .grits-results-list {
+        width: 100%;
         overflow-y: scroll;
         overflow-x: hidden;
-        float: right;
-        padding-left: 5px;
-        padding-right: 5px;
+        height: 324px;
+        padding: 3px;
     }
     .grits-left-side {
         width: 50%;
@@ -157,7 +161,7 @@
         white-space: nowrap;
         text-overflow: ellipsis;
         overflow: hidden;
-        width: 78%;
+        width: 75%;
         display: inline-block;
     }
     #grits-current-selection-count {
@@ -165,7 +169,7 @@
         font-weight: bold;
         padding-right: 2px;
         display: inline-block;
-        max-width: 22%;
+        max-width: 25%;
         overflow: hidden;
         white-space: nowrap;
     }
@@ -294,19 +298,21 @@
 </div>
 <div ng-if='results != null'>
     <h3>Results ({{results.length + (selectedLocation && selectedFilter ? ' - ' + selectedCount + ' selected' : '')}})</h3>
-    <div ng-class='{"hide-unselected": selectedLocation && selectedFilter}'>
-        <div class='grits-result' ng-repeat='result in results'
-                ng-mouseover='highlightAlert(result)'
-                ng-mouseleave='unhighlightAlert(result)'
-                ng-click='transitionTo(result)'
-                id='alert-{{result.properties.id}}'
-                title='{{result.properties.id}}'
-                >
-            <div class='result-date'>{{result.properties.date}}</div>
-            <div class='result-description'>{{result.properties.summary}}</div>
-            <a class='result-link' href='{{result.properties.link}}'
-                target='grits-link'><i class="fa fa-link">
-                </i></a>
+    <div class='grits-results-list'>
+        <div ng-class='{"hide-unselected": selectedLocation && selectedFilter}'>
+            <div class='grits-result' ng-repeat='result in results'
+                    ng-mouseover='highlightAlert(result)'
+                    ng-mouseleave='unhighlightAlert(result)'
+                    ng-click='transitionTo(result)'
+                    id='alert-{{result.properties.id}}'
+                    title='{{result.properties.id}}'
+                    >
+                <div class='result-date'>{{result.properties.date}}</div>
+                <div class='result-description'>{{result.properties.summary}}</div>
+                <a class='result-link' href='{{result.properties.link}}'
+                    target='grits-link'><i class="fa fa-link">
+                    </i></a>
+            </div>
         </div>
     </div>
 </div>

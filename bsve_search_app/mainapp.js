@@ -87,7 +87,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
                 var elemId = getDomId(evt.data);
                 $('.picked').removeClass('picked');
                 var elems = $(elemId).addClass('picked');
-                scrollToCenter(elems, 10);
+                scrollToCenter(elems, 15);
                 $scope.unpick();
                 lastPicked = evt.data;
                 evt.data.picked = true;
@@ -154,6 +154,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
         }).eq(0);;
         var curScroll = scrollElem.scrollTop();
         var view = scrollElem.height();
+        var parentPos = scrollElem.position()
         var offset = (view - height) / 2;
         if (minOffset && offset < minOffset) {
             offset = minOffset;
@@ -161,7 +162,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
         if (offset > 0) {
             position.top -= offset;
         }
-        scrollElem.scrollTop(curScroll + position.top);
+        scrollElem.scrollTop(curScroll + position.top - parentPos.top);
     }
 
     function highlightPoint(action, point) {
@@ -402,7 +403,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
     $scope.scrollToCurrent = function () {
         /* Scroll to the picked alerts */
         var elems = $('.picked');
-        scrollToCenter(elems, 10);
+        scrollToCenter(elems, 15);
     }
 
     $scope.url = 'http://localhost:8081';
