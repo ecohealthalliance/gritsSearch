@@ -150,8 +150,9 @@ class GRITSDatabase(Resource):
         folder = self.gritsFolder()
         oldRecords = ModelImporter.model('item').find({
             'folderId': folder['_id'],
-            '$and': [{'meta.events': {'$elemMatch': {'diseases': {
-            '$exists': False}}}}, {'meta.disease': {'$exists': True}}]})
+            '$and': [{'$or': [{'meta.events': {'$exists': False}}, {
+            'meta.events': {'$elemMatch': {'diseases': {'$exists': False}}}}]},
+            {'meta.disease': {'$exists': True}}]})
         self._databaseIsWellFormed = not oldRecords.count()
 
     def gritsInfo(self):
