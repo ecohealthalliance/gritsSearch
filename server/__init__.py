@@ -150,7 +150,7 @@ class GRITSDatabase(Resource):
         folder = self.gritsFolder()
         oldRecords = ModelImporter.model('item').find({
             'folderId': folder['_id'],
-            '$and': [{'meta.events.dieases': {'$exists': False}},
+            '$and': [{'meta.events.diseases': {'$exists': False}},
             {'meta.disease': {'$exists': True}}]})
         self._databaseIsWellFormed = not oldRecords.count()
 
