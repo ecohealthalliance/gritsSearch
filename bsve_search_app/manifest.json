@@ -1,0 +1,9 @@
+{
+	"name": "GRITS Search",
+	"description": "Sample app that will search GRITS data within Girder",
+	"version": "1.0.0",
+	"tags": "grits, girder",
+	"category": "Tools",
+	"width": "2",
+	"height": "800"
+}
