@@ -406,7 +406,7 @@ app.controller('AppController', function($scope, $http, $cookies) {
         scrollToCenter(elems, 15);
     }
 
-    $scope.url = 'http://localhost:8081';
+    $scope.url = 'https://grits.ecohealth.io/gritsdb';
     if ($cookies.girderUrl) {
         $scope.url = $cookies.girderUrl;
     }
