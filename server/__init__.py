@@ -1,5 +1,6 @@
 
 import os
+import pprint
 import re
 import random
 from dateutil.parser import parse as dateParse
@@ -10,11 +11,14 @@ import bson.json_util
 
 import cherrypy
 
+from girder import logger
 from girder.api.rest import Resource, RestException, loadmodel
 from girder.api.describe import Description
 from girder.utility.model_importer import ModelImporter
 from girder.constants import AccessType
 from girder.models.model_base import AccessException
+
+EventsListName = 'events'
 
 try:
     from girder.api import access
@@ -264,41 +268,7 @@ class GRITSDatabase(Resource):
         index = map(lambda x: x >= val, table['cdf']).index(True)
         return table['value'][index]
 
-    def getSymptomFromId(self, id):
-        # lazy load symptoms table
-        if self._symptomsTable is None:
-            f = open(os.path.join(
-                os.path.dirname(__file__),
-                'symptomsHist.json'
-            ), 'r').read()
-            self._symptomsTable = json.loads(f)
-
-        random.seed(id)  # set seed for repeatable results
-        nSymptoms = self.selectFromCDF(
-            random.random(),
-            self._symptomsTable['nSymptoms']
-        )
-
-        nSymptoms = min(
-            nSymptoms,
-            len(self._symptomsTable['symptoms']['value'])
-        )
-        symptoms = []
-        for i in xrange(nSymptoms):
-            repeat = True
-            while repeat:
-                s = self.selectFromCDF(
-                    random.random(),
-                    self._symptomsTable['symptoms']
-                )
-                try:
-                    symptoms.index(s)
-                except ValueError:
-                    symptoms.append(s)
-                    repeat = False
-        return symptoms
-
-    def addToQuery(self, query, params, key, useRegex, itemKey=None, arrayKey=None):
+    def addToQuery(self, query, params, key, useRegex, itemKey=None, arrayKey=None, multipleEvents=False):
         value = params.get(key)
         if value is not None:
             if itemKey is None:
@@ -315,6 +285,22 @@ class GRITSDatabase(Resource):
                 else:
                     query[itemKey] = {'$elemMatch': {}}
                     query[itemKey]['$elemMatch'][arrayKey] = value
+            if multipleEvents:
+                orQuery = [{itemKey: query[itemKey]},
+                           {'meta.' + EventsListName:
+                           {'$elemMatch': {key: query[itemKey]}}}]
+                if multipleEvents is not True:
+                    orQuery.append({'meta.' + multipleEvents: query[itemKey]})
+                    orQuery.append({'meta.' + EventsListName:
+                           {'$elemMatch': {multipleEvents: query[itemKey]}}})
+                if '$and' in query:
+                    query['$and'].append({'$or': orQuery})
+                elif '$or' in query:
+                    query['$and'] = [{'$or': query['$or']}, {'$or': orQuery}]
+                    del query['$or']
+                else:
+                    query['$or'] = orQuery
+                del query[itemKey]
         return self
 
     @access.user
@@ -365,16 +351,16 @@ class GRITSDatabase(Resource):
         limit, offset, sort = self.getPagingParameters(params, 'meta.date')
         sDate = dateParse(params.get('start', '1990-01-01'))
         eDate = dateParse(params.get('end', str(datetime.now())))
-        useRegex = 'regex' in params
+        useRegex = self.boolParam('regex', params, False)
 
         query = {
             'folderId': folder['_id'],
             'meta.date': {'$gte': sDate, '$lt': eDate}
         }
 
-        self.addToQuery(query, params, 'country', useRegex)
-        self.addToQuery(query, params, 'disease', useRegex)
-        self.addToQuery(query, params, 'species', useRegex)
+        self.addToQuery(query, params, 'country', useRegex, multipleEvents=True)
+        self.addToQuery(query, params, 'disease', useRegex, multipleEvents='diseases')
+        self.addToQuery(query, params, 'species', useRegex, multipleEvents=True)
         self.addToQuery(query, params, 'feed', useRegex)
         self.addToQuery(query, params, 'description', useRegex)
         self.addToQuery(
@@ -388,6 +374,7 @@ class GRITSDatabase(Resource):
         self.addToQuery(query, params, 'id', useRegex, 'name')
 
         model = ModelImporter().model('item')
+        logger.info('gritsSearch query\n'+pprint.pformat(query))
         cursor = model.find(
             query=query,
             fields=None,
@@ -399,23 +386,7 @@ class GRITSDatabase(Resource):
         if not self.checkAccess(priv=True, fail=False):
             result = [model.filter(i) for i in result]
 
-        if 'randomSymptoms' in params:
-            try:
-                filterBySymptom = set(json.loads(params['filterSymptoms']))
-            except Exception:
-                filterBySymptom = False
-            filtered = []
-            for r in result:
-                r['meta']['symptoms'] = self.getSymptomFromId(r['_id'])
-                if filterBySymptom:
-                    s2 = set(r['meta']['symptoms'])
-                    if not filterBySymptom.isdisjoint(s2):
-                        filtered.append(r)
-                else:
-                    filtered.append(r)
-            result = filtered
-
-        if 'geoJSON' in params:
+        if self.boolParam('geoJSON', params, False):
             result = self.togeoJSON(result)
         return result
 
@@ -474,26 +445,26 @@ class GRITSDatabase(Resource):
             "limit",
             "The number of items to return (default=50)",
             required=False,
-            dataType='int'
+            dataType='integer'
         )
         .param(
             "offset",
             "Offset into the result set (default=0)",
             required=False,
-            dataType='int'
+            dataType='integer'
         )
         .param(
             "geoJSON",
             "Return the query as a geoJSON object " +
             "when this parameter is present",
             required=False,
-            dataType='bool'
+            dataType='boolean'
         )
         .param(
             "regex",
             "Enable regex search for text fields",
             required=False,
-            dataType='bool'
+            dataType='boolean'
         )
         .errorResponse()
     )
